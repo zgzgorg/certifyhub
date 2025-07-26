@@ -56,6 +56,20 @@ CREATE TABLE templates (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Template metadata table for storing field information
+CREATE TABLE template_metadata (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  template_id UUID NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  is_default BOOLEAN DEFAULT false,
+  user_id UUID NOT NULL,
+  metadata JSONB NOT NULL, -- Flexible JSON structure for field definitions
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(template_id, user_id, is_default) -- Ensure only one default per user per template
+);
+
 -- =====================================================
 -- Create triggers for automatic timestamp updates
 -- =====================================================
@@ -82,12 +96,17 @@ CREATE TRIGGER update_templates_updated_at
   BEFORE UPDATE ON templates 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_template_metadata_updated_at 
+  BEFORE UPDATE ON template_metadata 
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- =====================================================
 -- Enable Row Level Security (RLS)
 -- =====================================================
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE regular_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE template_metadata ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
 -- Create RLS policies (simplified for development)
@@ -105,6 +124,10 @@ CREATE POLICY "Enable all operations for regular users" ON regular_users
 CREATE POLICY "Enable all operations for templates" ON templates
   FOR ALL USING (true) WITH CHECK (true);
 
+-- Template metadata policies - allow all operations for development
+CREATE POLICY "Enable all operations for template_metadata" ON template_metadata
+  FOR ALL USING (true) WITH CHECK (true);
+
 -- =====================================================
 -- Create indexes for better performance
 -- =====================================================
@@ -116,6 +139,10 @@ CREATE INDEX idx_regular_users_email ON regular_users(email);
 CREATE INDEX idx_templates_user_id ON templates(user_id);
 CREATE INDEX idx_templates_is_public ON templates(is_public);
 CREATE INDEX idx_templates_share_url ON templates(share_url);
+CREATE INDEX idx_template_metadata_template_id ON template_metadata(template_id);
+CREATE INDEX idx_template_metadata_user_id ON template_metadata(user_id);
+CREATE INDEX idx_template_metadata_is_default ON template_metadata(is_default);
+CREATE INDEX idx_template_metadata_template_user_default ON template_metadata(template_id, user_id, is_default);
 
 -- =====================================================
 -- Optional: Add foreign key constraints (uncomment when ready)

@@ -5,13 +5,17 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import TemplateUploadModal from '@/components/TemplateUploadModal';
 import TemplateCard from '@/components/TemplateCard';
-import { Template } from '@/types/template';
+import { TemplateMetadataEditor } from '@/components/TemplateMetadataEditor';
+import { Template, TemplateMetadata } from '@/types/template';
 
 export default function TemplatesPage() {
   const { user } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
+  const [editingMetadata, setEditingMetadata] = useState<TemplateMetadata | null>(null);
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -70,6 +74,66 @@ export default function TemplatesPage() {
     }
   };
 
+  const handleManageMetadata = (template: Template) => {
+    setSelectedTemplate(template);
+    setEditingMetadata(null);
+    setIsMetadataEditorOpen(true);
+  };
+
+  const handleEditMetadata = (template: Template, metadata: TemplateMetadata) => {
+    setSelectedTemplate(template);
+    setEditingMetadata(metadata);
+    setIsMetadataEditorOpen(true);
+  };
+
+  const handleMetadataSaved = async (metadata: TemplateMetadata) => {
+    if (!selectedTemplate) return;
+
+    try {
+      if (editingMetadata) {
+        // Update existing metadata
+        const { error } = await supabase
+          .from('template_metadata')
+          .update({
+            name: metadata.name,
+            description: metadata.description,
+            is_default: metadata.is_default,
+            metadata: metadata.metadata,
+          })
+          .eq('id', metadata.id);
+
+        if (error) throw error;
+      } else {
+        // Create new metadata
+        const { error } = await supabase
+          .from('template_metadata')
+          .insert({
+            template_id: selectedTemplate.id,
+            name: metadata.name,
+            description: metadata.description,
+            is_default: metadata.is_default,
+            user_id: user?.id,
+            metadata: metadata.metadata,
+          });
+
+        if (error) throw error;
+      }
+
+      setIsMetadataEditorOpen(false);
+      setSelectedTemplate(null);
+      setEditingMetadata(null);
+    } catch (error) {
+      console.error('Error saving metadata:', error);
+      alert('Failed to save metadata');
+    }
+  };
+
+  const handleMetadataCancel = () => {
+    setIsMetadataEditorOpen(false);
+    setSelectedTemplate(null);
+    setEditingMetadata(null);
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -123,6 +187,7 @@ export default function TemplatesPage() {
                 key={template.id}
                 template={template}
                 onDelete={handleTemplateDeleted}
+                onManageMetadata={handleManageMetadata}
               />
             ))}
           </div>
@@ -133,6 +198,16 @@ export default function TemplatesPage() {
           onClose={() => setIsUploadModalOpen(false)}
           onUploaded={handleTemplateUploaded}
         />
+
+        {selectedTemplate && (
+          <TemplateMetadataEditor
+            template={selectedTemplate}
+            metadata={editingMetadata || undefined}
+            onSave={handleMetadataSaved}
+            onCancel={handleMetadataCancel}
+            isEditing={!!editingMetadata}
+          />
+        )}
       </div>
     </div>
   );

@@ -6,9 +6,10 @@ import { Template } from '@/types/template';
 interface TemplateCardProps {
   template: Template;
   onDelete: (templateId: string) => void;
+  onManageMetadata: (template: Template) => void;
 }
 
-export default function TemplateCard({ template, onDelete }: TemplateCardProps) {
+export default function TemplateCard({ template, onDelete, onManageMetadata }: TemplateCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -118,6 +119,15 @@ export default function TemplateCard({ template, onDelete }: TemplateCardProps) 
               {copied ? 'Copied!' : 'Copy Share URL'}
             </button>
           )}
+        </div>
+
+        <div className="mt-3 flex space-x-2">
+          <button
+            onClick={() => onManageMetadata(template)}
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm py-2 px-3 rounded-md transition-colors"
+          >
+            Manage Metadata
+          </button>
         </div>
 
         <div className="mt-4 pt-4 border-t border-gray-200">
