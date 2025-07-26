@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Temporarily disable static export for development
-  // output: 'export',
+  // Enable static export for GitHub Pages
+  output: 'export',
   trailingSlash: true,
   images: {
     unoptimized: true
