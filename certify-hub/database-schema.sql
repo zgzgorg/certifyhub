@@ -9,6 +9,7 @@
 -- =====================================================
 DROP TABLE IF EXISTS organizations CASCADE;
 DROP TABLE IF EXISTS regular_users CASCADE;
+DROP TABLE IF EXISTS templates CASCADE;
 
 -- =====================================================
 -- Create tables
@@ -39,6 +40,22 @@ CREATE TABLE regular_users (
   user_id UUID -- Foreign key will be added later for better development experience
 );
 
+-- Templates table for certificate templates
+CREATE TABLE templates (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  file_url TEXT NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_size BIGINT NOT NULL,
+  file_type VARCHAR(100) NOT NULL,
+  is_public BOOLEAN DEFAULT false,
+  user_id UUID NOT NULL,
+  share_url TEXT UNIQUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- =====================================================
 -- Create triggers for automatic timestamp updates
 -- =====================================================
@@ -61,11 +78,16 @@ CREATE TRIGGER update_regular_users_updated_at
   BEFORE UPDATE ON regular_users 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_templates_updated_at 
+  BEFORE UPDATE ON templates 
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- =====================================================
 -- Enable Row Level Security (RLS)
 -- =====================================================
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE regular_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE templates ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
 -- Create RLS policies (simplified for development)
@@ -79,6 +101,10 @@ CREATE POLICY "Enable all operations for organizations" ON organizations
 CREATE POLICY "Enable all operations for regular users" ON regular_users
   FOR ALL USING (true) WITH CHECK (true);
 
+-- Templates policies - allow all operations for development
+CREATE POLICY "Enable all operations for templates" ON templates
+  FOR ALL USING (true) WITH CHECK (true);
+
 -- =====================================================
 -- Create indexes for better performance
 -- =====================================================
@@ -87,6 +113,9 @@ CREATE INDEX idx_organizations_status ON organizations(status);
 CREATE INDEX idx_organizations_email ON organizations(email);
 CREATE INDEX idx_regular_users_user_id ON regular_users(user_id);
 CREATE INDEX idx_regular_users_email ON regular_users(email);
+CREATE INDEX idx_templates_user_id ON templates(user_id);
+CREATE INDEX idx_templates_is_public ON templates(is_public);
+CREATE INDEX idx_templates_share_url ON templates(share_url);
 
 -- =====================================================
 -- Optional: Add foreign key constraints (uncomment when ready)
