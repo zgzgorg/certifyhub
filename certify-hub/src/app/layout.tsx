@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Link from "next/link";
-import { UI_TEXT } from '@/constants/messages';
 import { AuthProvider } from '../contexts/AuthContext';
 import NavigationBar from '../components/NavigationBar';
 

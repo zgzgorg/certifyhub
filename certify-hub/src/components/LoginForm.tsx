@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabaseClient';
 
 export default function LoginForm() {
@@ -8,17 +9,22 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
 
+    // Create abort controller for request cancellation
+    const abortController = new AbortController();
+    
     // 添加超时机制
     const timeoutId = setTimeout(() => {
+      abortController.abort();
       setLoading(false);
       setMessage({ type: 'error', text: 'Login request timed out. Please try again.' });
-    }, 10000); // 10秒超时
+    }, 15000); // Increased to 15 seconds
 
     try {
       console.log('Attempting login for:', email);
@@ -28,7 +34,7 @@ export default function LoginForm() {
         password
       });
 
-      clearTimeout(timeoutId); // 清除超时
+      clearTimeout(timeoutId);
 
       if (error) {
         console.error('Login error:', error);
@@ -41,21 +47,38 @@ export default function LoginForm() {
           errorMessage = 'Please check your email and click the verification link before logging in.';
         } else if (error.message.includes('Too many requests')) {
           errorMessage = 'Too many login attempts. Please wait a moment and try again.';
+        } else if (error.message.includes('timeout') || error.message.includes('network')) {
+          errorMessage = 'Network timeout. Please check your connection and try again.';
         }
         
         setMessage({ type: 'error', text: errorMessage });
       } else {
         console.log('Login successful:', data);
         setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
-        // 这里可以添加重定向逻辑
+        
+        // Use Next.js router for better performance
         setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 1500);
+          router.push('/dashboard');
+        }, 1000); // Reduced delay
       }
     } catch (error: any) {
-      clearTimeout(timeoutId); // 清除超时
+      clearTimeout(timeoutId);
+      
+      if (abortController.signal.aborted) {
+        console.log('Login request was aborted');
+        return;
+      }
+      
       console.error('Login exception:', error);
-      setMessage({ type: 'error', text: error.message || 'Login failed. Please check your connection and try again.' });
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.message?.includes('timeout') || error.message?.includes('network')) {
+        errorMessage = 'Network timeout. Please check your connection and try again.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -74,7 +97,7 @@ export default function LoginForm() {
     const timeoutId = setTimeout(() => {
       setLoading(false);
       setMessage({ type: 'error', text: 'Request timed out. Please try again.' });
-    }, 10000); // 10秒超时
+    }, 12000); // Increased timeout
 
     try {
       console.log('Sending password reset email to:', email);
