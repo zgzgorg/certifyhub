@@ -17,7 +17,7 @@ export default function LoginPage() {
         <div className="mt-8 pt-6 border-t border-gray-200">
           <div className="text-center">
             <p className="text-sm text-gray-600 mb-4">
-              Don't have an account? Choose your registration type:
+              Don&apos;t have an account? Choose your registration type:
             </p>
             <div className="space-y-3">
               <a

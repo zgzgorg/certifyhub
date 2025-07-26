@@ -88,7 +88,7 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="text-gray-600">
-            Welcome back! Here's your account overview.
+            Welcome back! Here&apos;s your account overview.
           </p>
         </div>
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, getSession } from '../lib/supabaseClient';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -54,14 +54,21 @@ export default function LoginForm() {
         setMessage({ type: 'error', text: errorMessage });
       } else {
         console.log('Login successful:', data);
-        setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
         
-        // Use Next.js router for better performance
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 1000); // Reduced delay
+        // Verify session was created properly
+        const session = await getSession();
+        if (session?.user) {
+          setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
+          
+          // Use Next.js router for better performance
+          setTimeout(() => {
+            router.push('/dashboard');
+          }, 1000); // Reduced delay
+        } else {
+          setMessage({ type: 'error', text: 'Login succeeded but session not created. Please try again.' });
+        }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeoutId);
       
       if (abortController.signal.aborted) {
@@ -71,11 +78,12 @@ export default function LoginForm() {
       
       console.error('Login exception:', error);
       let errorMessage = 'Login failed. Please try again.';
+      const errMsg = error instanceof Error ? error.message : '';
       
-      if (error.message?.includes('timeout') || error.message?.includes('network')) {
+      if (errMsg.includes('timeout') || errMsg.includes('network')) {
         errorMessage = 'Network timeout. Please check your connection and try again.';
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else if (errMsg) {
+        errorMessage = errMsg;
       }
       
       setMessage({ type: 'error', text: errorMessage });
@@ -118,10 +126,10 @@ export default function LoginForm() {
           text: 'Password reset email sent! Please check your email for instructions.' 
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeoutId); // 清除超时
       console.error('Password reset exception:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to send reset email. Please try again.' });
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to send reset email. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -178,7 +186,7 @@ export default function LoginForm() {
             <div className="mt-2 text-sm">
               <p>Need help?</p>
               <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>Make sure you've verified your email address</li>
+                <li>Make sure you&apos;ve verified your email address</li>
                 <li>Check that your email and password are correct</li>
                 <li>If you just registered, please check your email for verification</li>
               </ul>

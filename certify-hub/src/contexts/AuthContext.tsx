@@ -31,8 +31,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       
-      // 获取用户元数据
-      const { data: { user } } = await supabase.auth.getUser();
+      // 获取用户元数据 - check session first
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        console.warn('No active session found, skipping user data fetch');
+        setOrganization(null);
+        setRegularUser(null);
+        return;
+      }
+      
+      const user = session.user;
       const userRole = user?.user_metadata?.role;
 
       if (userRole === 'organization') {
@@ -85,15 +93,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       retryCountRef.current = 0; // Reset retry count on success
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching user data:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
       // Only retry on network/timeout errors, not on auth or schema errors
-      const isRetryableError = error.message?.includes('timeout') || 
-                              error.message?.includes('network') ||
-                              error.message?.includes('fetch') ||
-                              error.message?.includes('abort') ||
-                              error.status === 0; // Network error
+      const isRetryableError = errorMessage.includes('timeout') || 
+                              errorMessage.includes('network') ||
+                              errorMessage.includes('fetch') ||
+                              errorMessage.includes('abort') ||
+                              (error as { status?: number })?.status === 0; // Network error
       
       if (retryCount < MAX_RETRIES && isRetryableError) {
         console.log(`Retrying user data fetch (${retryCount + 1}/${MAX_RETRIES})...`);
@@ -104,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }, Math.pow(2, retryCount) * 1000);
       } else {
         // For non-retryable errors or max retries reached, still allow basic auth to work
-        console.warn('Cannot fetch additional user data, continuing with basic auth:', error.message);
+        console.warn('Cannot fetch additional user data, continuing with basic auth:', errorMessage);
         setOrganization(null);
         setRegularUser(null);
         // Don't set error state for these cases - user can still use basic features
@@ -118,7 +127,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 获取初始用户状态
     const getUser = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
+        // Use getSession instead of getUser to avoid AuthSessionMissingError
+        const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           throw error;
@@ -126,15 +136,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (!isMounted) return;
         
+        const user = session?.user || null;
         setUser(user);
         
         if (user) {
           await fetchUserData(user.id);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error getting user:', error);
         if (isMounted) {
-          setError(error.message || 'Failed to load user');
+          setError(error instanceof Error ? error.message : 'Failed to load user');
         }
       } finally {
         if (isMounted) {
