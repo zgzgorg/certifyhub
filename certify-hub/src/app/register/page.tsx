@@ -11,9 +11,31 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Testing Phase Notice */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                Testing Phase - Registration Temporarily Disabled
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>
+                  New user registration is currently paused during the testing phase. 
+                  Registration will be reopened at a later date. Please check back for updates.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 opacity-50">
           {/* Organization Registration */}
-          <div className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
+          <div className="border border-gray-200 rounded-lg p-6 transition">
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -32,17 +54,17 @@ export default function RegisterPage() {
                 <li>• Manage certificate templates</li>
                 <li>• Requires admin approval</li>
               </ul>
-              <a
-                href="/register/organization"
-                className="block w-full bg-green-600 text-white py-3 px-4 rounded-md font-semibold hover:bg-green-700 transition"
+              <button
+                disabled
+                className="block w-full bg-gray-400 text-white py-3 px-4 rounded-md font-semibold cursor-not-allowed"
               >
-                Register as Organization
-              </a>
+                Registration Disabled
+              </button>
             </div>
           </div>
 
           {/* Regular User Registration */}
-          <div className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
+          <div className="border border-gray-200 rounded-lg p-6 transition">
             <div className="text-center">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,12 +83,12 @@ export default function RegisterPage() {
                 <li>• Personal dashboard</li>
                 <li>• Instant activation</li>
               </ul>
-              <a
-                href="/register/user"
-                className="block w-full bg-blue-600 text-white py-3 px-4 rounded-md font-semibold hover:bg-blue-700 transition"
+              <button
+                disabled
+                className="block w-full bg-gray-400 text-white py-3 px-4 rounded-md font-semibold cursor-not-allowed"
               >
-                Register as User
-              </a>
+                Registration Disabled
+              </button>
             </div>
           </div>
         </div>
