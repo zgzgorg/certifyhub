@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { BulkGenerationRow, CertificateField, CertificateTemplate } from '@/types/certificate';
 import { parseExcelData, parseExcelFile } from '@/utils/excel';
 import CertificatePreview from '@/components/CertificatePreview';
+import { generatePDFsAsZip } from '@/utils/pdfGenerator';
 
 export const useBulkGeneration = () => {
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -86,66 +87,36 @@ export const useBulkGeneration = () => {
 
     setExporting(true);
     setExportProgress(0);
-    const zip = new JSZip();
 
-    for (let i = 0; i < bulkRows.length; i++) {
-      const row = bulkRows[i];
-      const rowFields = editableFields.map(f => ({ ...f, value: row[f.id] || '' }));
+    try {
+      // Prepare fields list for each row
+      const fieldsList = bulkRows.map(row => 
+        editableFields.map(f => ({ ...f, value: row[f.id] || '' }))
+      );
+
+      // Generate PDFs as ZIP using the modular function
+      const zipBlob = await generatePDFsAsZip(
+        selectedTemplateObj,
+        fieldsList,
+        'certificate'
+      );
       
-      // Create temporary container for rendering
-      const container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.left = '-9999px';
-      document.body.appendChild(container);
+      // Trigger download
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'certificates.zip';
+      a.click();
+      URL.revokeObjectURL(url);
       
-      const ReactDOMClient = await import('react-dom/client');
-      const root = ReactDOMClient.createRoot(container);
-      
-      await new Promise(resolve => {
-        root.render(
-          React.createElement(CertificatePreview, {
-            ref: previewRef,
-            template: selectedTemplateObj,
-            fields: rowFields,
-            onFieldPositionChange: () => {},
-            maxWidth: 600,
-            maxHeight: 500
-          })
-        );
-        setTimeout(resolve, 300);
-      });
-
-      // Export PDF as blob
-      let pdfBlob: Blob | null = null;
-      if (previewRef.current?.exportToPDF) {
-        const result = await previewRef.current.exportToPDF(`certificate_${i + 1}.pdf`, true);
-        pdfBlob = result instanceof Blob ? result : null;
-      }
-
-      root.unmount();
-      document.body.removeChild(container);
-
-      if (pdfBlob) {
-        zip.file(`certificate_${i + 1}.pdf`, pdfBlob);
-      }
-
-      setExportProgress(Math.round(((i + 1) / bulkRows.length) * 100));
+      setExporting(false);
+      setExportProgress(0);
+    } catch (error) {
+      console.error('Error generating bulk PDFs:', error);
+      setExporting(false);
+      setExportProgress(0);
+      throw error;
     }
-
-    // Generate zip and trigger download
-    const zipBlob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
-      setExportProgress(Math.round(metadata.percent));
-    });
-    
-    const url = URL.createObjectURL(zipBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'certificates.zip';
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    setExporting(false);
-    setExportProgress(0);
   }, [bulkRows]);
 
   const clearError = useCallback(() => {

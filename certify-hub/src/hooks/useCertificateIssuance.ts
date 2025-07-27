@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { BulkGenerationRow, CertificateField, CertificateTemplate } from '@/types/certificate';
 import React from 'react';
 import CertificatePreview from '@/components/CertificatePreview';
+import { generateCertificatePDF as generatePDF } from '@/utils/pdfGenerator';
 
 export interface CertificateIssuanceData {
   templateId: string;
@@ -57,141 +58,17 @@ export const useCertificateIssuance = () => {
     fields: CertificateField[],
     certificateKey: string
   ): Promise<Blob> => {
-    // Preload the template image to ensure it's ready
-    const preloadImage = new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = template.thumbnail;
+    const result = await generatePDF({
+      template,
+      fields,
+      filename: `certificate_${certificateKey}.pdf`,
+      returnBlob: true
     });
     
-    try {
-      await preloadImage;
-      console.log('Template image preloaded successfully');
-    } catch (error) {
-      console.error('Failed to preload template image:', error);
-      throw new Error('Failed to load template image');
-    }
-    
-    // Get image dimensions
-    const img = new Image();
-    img.src = template.thumbnail;
-    await new Promise((resolve) => {
-      img.onload = () => resolve(img);
-    });
-    
-    const imgWidth = img.naturalWidth;
-    const imgHeight = img.naturalHeight;
-    
-    // Create clean certificate element directly (similar to CertificatePreview's createCleanCertificateElement)
-    const cleanDiv = document.createElement('div');
-    cleanDiv.style.position = 'relative';
-    cleanDiv.style.width = `${imgWidth}px`;
-    cleanDiv.style.height = `${imgHeight}px`;
-    cleanDiv.style.background = 'white';
-    
-    // Add template image
-    const templateImg = document.createElement('img');
-    templateImg.src = template.thumbnail;
-    templateImg.style.position = 'absolute';
-    templateImg.style.top = '0';
-    templateImg.style.left = '0';
-    templateImg.style.width = '100%';
-    templateImg.style.height = '100%';
-    templateImg.style.objectFit = 'cover';
-    cleanDiv.appendChild(templateImg);
-    
-    // Add fields that should show in preview
-    fields.filter(field => field.showInPreview && field.value).forEach(field => {
-      const fieldDiv = document.createElement('div');
-      fieldDiv.style.position = 'absolute';
-      
-      // Calculate text dimensions
-      const fontSize = field.fontSize || 16;
-      const fontFamily = field.fontFamily || 'serif';
-      
-      // Simple text dimension calculation (you can improve this if needed)
-      const textWidth = field.value.length * fontSize * 0.6; // Approximate width
-      const textHeight = fontSize * 1.2; // Approximate height
-      
-      // field.position stores the anchor point position (in original coordinates)
-      const anchorX = field.position.x;
-      const anchorY = field.position.y;
-      const textAlign = field.textAlign || 'center';
-      
-      // Calculate actual render position based on anchor point and text alignment
-      let renderX = anchorX;
-      if (textAlign === 'center') {
-        renderX = anchorX - textWidth / 2;
-      } else if (textAlign === 'right') {
-        renderX = anchorX - textWidth;
-      }
-      
-      // Vertical centering
-      const verticalOffset = 0.75;
-      const renderY = anchorY - textHeight * verticalOffset;
-      
-      fieldDiv.style.left = `${renderX}px`;
-      fieldDiv.style.top = `${renderY}px`;
-      fieldDiv.style.fontSize = `${fontSize}px`;
-      fieldDiv.style.fontFamily = fontFamily;
-      fieldDiv.style.color = field.color || '#000000';
-      fieldDiv.style.fontWeight = '600';
-      fieldDiv.style.whiteSpace = 'pre';
-      fieldDiv.style.textAlign = textAlign;
-      fieldDiv.style.zIndex = '2';
-      fieldDiv.textContent = field.value;
-      cleanDiv.appendChild(fieldDiv);
-    });
-    
-    // Temporarily add to DOM for rendering (positioned off-screen)
-    cleanDiv.style.position = 'fixed';
-    cleanDiv.style.left = '-9999px';
-    cleanDiv.style.top = '-9999px';
-    document.body.appendChild(cleanDiv);
-    
-    try {
-      // Wait for image to load in clean element
-      await new Promise((resolve) => {
-        const img = cleanDiv.querySelector('img');
-        if (img && !img.complete) {
-          img.onload = resolve;
-          img.onerror = resolve;
-          setTimeout(resolve, 5000); // Timeout after 5 seconds
-        } else {
-          resolve(null);
-        }
-      });
-      
-      // Import required libraries
-      const html2canvas = (await import('html2canvas')).default;
-      const jsPDF = (await import('jspdf')).default;
-      
-      // Capture the clean certificate
-      console.log('Starting html2canvas with dimensions:', imgWidth, 'x', imgHeight);
-      const canvas = await html2canvas(cleanDiv, { 
-        useCORS: true, 
-        backgroundColor: 'white',
-        scale: 1,
-        width: imgWidth,
-        height: imgHeight,
-        logging: false
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: canvas.width > canvas.height ? 'l' : 'p',
-        unit: 'px',
-        format: [canvas.width, canvas.height],
-      });
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-      
-      console.log('PDF generated successfully');
-      return pdf.output('blob');
-    } finally {
-      // Remove temporary element
-      document.body.removeChild(cleanDiv);
+    if (result.success && result.blob) {
+      return result.blob;
+    } else {
+      throw new Error(result.error || 'Failed to generate PDF');
     }
   };
 
