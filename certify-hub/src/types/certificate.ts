@@ -18,6 +18,17 @@ export type CertificateField = {
   textAlign?: 'left' | 'center' | 'right';
 };
 
+export type CertificatePreviewRef = {
+  getTemplateDimensions: () => {
+    width: number;
+    height: number;
+    scale: number;
+    scaledWidth: number;
+    scaledHeight: number;
+  };
+  exportToPDF: (filename?: string, returnBlob?: boolean) => Promise<Blob | void>;
+};
+
 export type CertificatePreviewProps = {
   template: CertificateTemplate;
   fields: CertificateField[];

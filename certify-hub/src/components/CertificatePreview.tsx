@@ -134,8 +134,16 @@ const CertificatePreview = forwardRef(function CertificatePreview({
     return cleanDiv;
   };
   
-  // Expose exportToPDF method
+  // Expose methods
   useImperativeHandle(ref, () => ({
+    getTemplateDimensions: () => ({
+      width: imgSize.width,
+      height: imgSize.height,
+      scale,
+      scaledWidth,
+      scaledHeight
+    }),
+    
     async exportToPDF(filename = 'certificate.pdf', returnBlob = false) {
       const html2canvas = (await import('html2canvas')).default;
       const jsPDF = (await import('jspdf')).jsPDF;

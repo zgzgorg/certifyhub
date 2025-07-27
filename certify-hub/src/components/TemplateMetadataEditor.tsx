@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import CertificatePreview from "@/components/CertificatePreview";
 import { FieldEditor } from "@/components/FieldEditor";
 import { Template, TemplateMetadata } from '@/types/template';
-import { CertificateField } from '@/types/certificate';
+import { CertificateField, CertificatePreviewRef } from '@/types/certificate';
 import { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT } from "@/config/certificate";
 
 interface TemplateMetadataEditorProps {
@@ -23,10 +23,10 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
   onCancel,
   isEditing = false
 }) => {
-  const [name, setName] = useState(metadata?.name || '');
-  const [description, setDescription] = useState(metadata?.description || '');
-  const [isDefault, setIsDefault] = useState(metadata?.is_default || false);
+  const [name, setName] = useState(metadata?.name || 'V0');
+  const [isDefault, setIsDefault] = useState(true);
   const [newFieldLabel, setNewFieldLabel] = useState("");
+  const [showCustomizeDetails, setShowCustomizeDetails] = useState(false);
   const [fields, setFields] = useState<CertificateField[]>(
     metadata?.metadata.map(f => ({
       id: f.id,
@@ -42,7 +42,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
     })) || []
   );
   
-  const previewRef = useRef<{ exportToPDF: (filename?: string, returnBlob?: boolean) => Promise<Blob | void> } | null>(null);
+  const previewRef = useRef<CertificatePreviewRef | null>(null);
 
   // Field management handlers
   const handleFieldChange = (id: string, value: string) => {
@@ -76,9 +76,31 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
   const handleAddField = () => {
     if (!newFieldLabel.trim()) return;
     
+    // Get template dimensions from preview ref
+    let templateWidth = 569; // Default fallback
+    let templateHeight = 437; // Default fallback
+    
+    if (previewRef.current) {
+      try {
+        const dimensions = previewRef.current.getTemplateDimensions();
+        templateWidth = dimensions.width;
+        templateHeight = dimensions.height;
+      } catch (error) {
+        console.warn('Could not get template dimensions, using defaults');
+      }
+    }
+    
+    // Calculate center position
+    const centerX = templateWidth / 2;
+    const centerY = templateHeight / 2;
+    
+    // Calculate font size as 1/10 of template height
+    const fontSize = Math.max(12, Math.min(48, Math.round(templateHeight / 10)));
+    
+    // Position new field in center, with slight offset for multiple fields
     const position = {
-      x: 400,
-      y: 400 + fields.length * 40
+      x: centerX,
+      y: centerY + (fields.length * 30) // Offset each new field by 30px
     };
     
     setFields(fields => [
@@ -89,7 +111,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
         value: '',
         position,
         required: false,
-        fontSize: 20,
+        fontSize,
         fontFamily: 'serif',
         color: '#1a237e',
         showInPreview: true,
@@ -117,7 +139,6 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
       id: metadata?.id || '',
       template_id: template.id,
       name: name.trim(),
-      description: description.trim() || undefined,
       is_default: isDefault,
       user_id: template.user_id,
       metadata: fields.map(f => ({
@@ -144,7 +165,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-2xl font-bold">
-            {isEditing ? 'Edit Template Metadata' : 'Create Template Metadata'}
+            Edit Template Metadata
           </h2>
           <div className="flex gap-3">
             <button
@@ -166,44 +187,43 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
         <div className="flex-1 overflow-hidden flex">
           {/* Left: Metadata Form and Field Editor */}
           <div className="w-1/2 p-6 overflow-y-auto border-r">
+            {/* Instructions */}
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h3 className="text-sm font-semibold text-blue-800 mb-2">What is Template Metadata?</h3>
+              <p className="text-sm text-blue-700 mb-3">
+                Template metadata defines the dynamic fields that will appear on certificates generated from this template. 
+                These fields can be customized for each certificate generation, such as recipient name, date, course title, etc.
+              </p>
+              <button
+                onClick={() => setShowCustomizeDetails(!showCustomizeDetails)}
+                className="text-sm font-semibold text-blue-800 hover:text-blue-600 flex items-center gap-1"
+              >
+                {showCustomizeDetails ? '▼' : '▶'} Click to see how to customize
+              </button>
+              {showCustomizeDetails && (
+                <div className="mt-3">
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• Add new fields using the "Add Field" section below</li>
+                    <li>• Drag fields in the preview to position them on the certificate</li>
+                    <li>• Customize font size, family, color, and alignment for each field</li>
+                    <li>• Toggle "Show in Preview" to control field visibility</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
             {/* Basic Info */}
             <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Metadata Name *
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter metadata name"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter description (optional)"
-                  rows={3}
-                />
-              </div>
-
               <div className="flex items-center">
                 <input
                   type="checkbox"
                   id="isDefault"
                   checked={isDefault}
-                  onChange={(e) => setIsDefault(e.target.checked)}
+                  disabled={true}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="isDefault" className="ml-2 block text-sm text-gray-900">
-                  Set as default metadata for this template
+                  Currently we only support default metadata editing
                 </label>
               </div>
             </div>
