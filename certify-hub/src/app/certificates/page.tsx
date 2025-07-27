@@ -16,13 +16,25 @@ import {
   TableBody,
   IconButton,
   Avatar,
-  Badge
+  Badge,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { 
   Visibility as VisibilityIcon,
   Download as DownloadIcon,
   Verified as VerifiedIcon,
-  FilterList as FilterListIcon
+  FilterList as FilterListIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -56,6 +68,16 @@ export default function CertificatesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [editingCertificate, setEditingCertificate] = useState<Certificate | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [certificateToDelete, setCertificateToDelete] = useState<Certificate | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    recipient_email: '',
+    status: 'active' as 'active' | 'revoked' | 'expired'
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (organization) {
@@ -172,6 +194,97 @@ export default function CertificatesPage() {
 
   const handleTemplateSelect = (templateId: string | null) => {
     setSelectedTemplateId(templateId);
+  };
+
+  const handleEditCertificate = (certificate: Certificate) => {
+    setEditingCertificate(certificate);
+    setEditFormData({
+      recipient_email: certificate.recipient_email,
+      status: certificate.status
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteCertificate = (certificate: Certificate) => {
+    setCertificateToDelete(certificate);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCertificate) return;
+
+    // 验证邮箱格式
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editFormData.recipient_email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError(null);
+
+      const { error } = await supabase
+        .from('certificates')
+        .update({
+          recipient_email: editFormData.recipient_email,
+          status: editFormData.status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingCertificate.id);
+
+      if (error) throw error;
+
+      // 重新加载证书列表
+      await loadCertificates();
+      await loadTemplatesWithCounts();
+      
+      setIsEditDialogOpen(false);
+      setEditingCertificate(null);
+    } catch (err) {
+      console.error('Error updating certificate:', err);
+      setError('Failed to update certificate');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!certificateToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      setError(null);
+
+      const { error } = await supabase
+        .from('certificates')
+        .delete()
+        .eq('id', certificateToDelete.id);
+
+      if (error) throw error;
+
+      // 重新加载证书列表
+      await loadCertificates();
+      await loadTemplatesWithCounts();
+      
+      setIsDeleteDialogOpen(false);
+      setCertificateToDelete(null);
+    } catch (err) {
+      console.error('Error deleting certificate:', err);
+      setError('Failed to delete certificate');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditDialogOpen(false);
+    setEditingCertificate(null);
+  };
+
+  const handleCancelDelete = () => {
+    setIsDeleteDialogOpen(false);
+    setCertificateToDelete(null);
   };
 
   const getFileIcon = (fileType: string) => {
@@ -380,6 +493,22 @@ export default function CertificatesPage() {
                           <DownloadIcon />
                         </IconButton>
                       )}
+                      <IconButton
+                        size="small"
+                        onClick={() => handleEditCertificate(cert)}
+                        title="Edit Certificate"
+                        color="primary"
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteCertificate(cert)}
+                        title="Delete Certificate"
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -388,6 +517,73 @@ export default function CertificatesPage() {
           </Table>
         </Card>
       )}
+
+      {/* Edit Certificate Dialog */}
+      <Dialog open={isEditDialogOpen} onClose={handleCancelEdit} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Certificate</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Recipient Email"
+              type="email"
+              value={editFormData.recipient_email}
+              onChange={(e) => setEditFormData(prev => ({ ...prev, recipient_email: e.target.value }))}
+              fullWidth
+              required
+            />
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={editFormData.status}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, status: e.target.value as 'active' | 'revoked' | 'expired' }))}
+                label="Status"
+              >
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="revoked">Revoked</MenuItem>
+                <MenuItem value="expired">Expired</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelEdit} disabled={isSaving}>Cancel</Button>
+          <Button 
+            onClick={handleSaveEdit} 
+            variant="contained" 
+            color="primary"
+            disabled={isSaving}
+            startIcon={isSaving ? <CircularProgress size={16} /> : null}
+          >
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Certificate Dialog */}
+      <Dialog open={isDeleteDialogOpen} onClose={handleCancelDelete} maxWidth="sm" fullWidth>
+        <DialogTitle>Delete Certificate</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ pt: 2 }}>
+            Are you sure you want to delete the certificate for{' '}
+            <strong>{certificateToDelete?.recipient_email}</strong>?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This action cannot be undone. The certificate will be permanently removed from the system.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelDelete} disabled={isDeleting}>Cancel</Button>
+          <Button 
+            onClick={handleConfirmDelete} 
+            variant="contained" 
+            color="error"
+            disabled={isDeleting}
+            startIcon={isDeleting ? <CircularProgress size={16} /> : null}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete Certificate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 } 
