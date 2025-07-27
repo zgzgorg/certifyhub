@@ -16,37 +16,69 @@ export default function TemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
   const [editingMetadata, setEditingMetadata] = useState<TemplateMetadata | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
 
-  const fetchTemplates = useCallback(async () => {
+  // 参数化fetchTemplates
+  const fetchTemplates = useCallback(async (userId: string) => {
     try {
+      console.log('🔍 Fetching templates for user:', userId);
       setLoading(true);
+      if (!userId) {
+        setTemplates([]);
+        return;
+      }
       const { data, error } = await supabase
         .from('templates')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase error fetching templates:', error);
+        throw error;
+      }
+      console.log('✅ Templates fetched successfully:', data?.length || 0, 'templates');
       setTemplates(data || []);
-    } catch (error) {
-      console.error('Error fetching templates:', error);
+    } catch (error: unknown) {
+      console.error('❌ Error fetching templates:', error);
+      let errorMessage = 'Failed to fetch templates';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        errorMessage = JSON.stringify(error);
+      }
+      console.error('📋 Detailed error info:', {
+        error,
+        errorType: typeof error,
+        errorMessage,
+        user: user?.id,
+        timestamp: new Date().toISOString()
+      });
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, []);
 
+  // 只在user.id首次有值时fetch一次，退出登录后重置
   useEffect(() => {
-    if (user) {
-      fetchTemplates();
+    if (user?.id && !hasFetched) {
+      fetchTemplates(user.id);
+      setHasFetched(true);
     }
-  }, [user, fetchTemplates]);
+    if (!user?.id) {
+      setTemplates([]);
+      setLoading(false);
+      setHasFetched(false);
+    }
+  }, [user?.id, hasFetched, fetchTemplates]);
 
-  const handleTemplateUploaded = () => {
-    fetchTemplates();
+  // 上传/删除后自动刷新
+  const handleTemplateUploaded = useCallback(() => {
+    setHasFetched(false);
     setIsUploadModalOpen(false);
-  };
+  }, []);
 
-  const handleTemplateDeleted = async (templateId: string) => {
+  const handleTemplateDeleted = useCallback(async (templateId: string) => {
     try {
       // Delete from storage first
       const template = templates.find(t => t.id === templateId);
@@ -58,37 +90,32 @@ export default function TemplatesPage() {
             .remove([filePath]);
         }
       }
-
       // Delete from database
       const { error } = await supabase
         .from('templates')
         .delete()
         .eq('id', templateId);
-
       if (error) throw error;
-      
-      // Refresh templates
-      fetchTemplates();
+      setHasFetched(false);
     } catch (error) {
       console.error('Error deleting template:', error);
     }
-  };
+  }, [templates]);
 
-  const handleManageMetadata = (template: Template) => {
+  const handleManageMetadata = useCallback((template: Template) => {
     setSelectedTemplate(template);
     setEditingMetadata(null);
     setIsMetadataEditorOpen(true);
-  };
+  }, []);
 
-  const handleEditMetadata = (template: Template, metadata: TemplateMetadata) => {
+  const handleEditMetadata = useCallback((template: Template, metadata: TemplateMetadata) => {
     setSelectedTemplate(template);
     setEditingMetadata(metadata);
     setIsMetadataEditorOpen(true);
-  };
+  }, []);
 
-  const handleMetadataSaved = async (metadata: TemplateMetadata) => {
+  const handleMetadataSaved = useCallback(async (metadata: TemplateMetadata) => {
     if (!selectedTemplate) return;
-
     try {
       if (editingMetadata) {
         // Update existing metadata
@@ -101,7 +128,6 @@ export default function TemplatesPage() {
             metadata: metadata.metadata,
           })
           .eq('id', metadata.id);
-
         if (error) throw error;
       } else {
         // Create new metadata
@@ -115,24 +141,23 @@ export default function TemplatesPage() {
             user_id: user?.id,
             metadata: metadata.metadata,
           });
-
         if (error) throw error;
       }
-
       setIsMetadataEditorOpen(false);
       setSelectedTemplate(null);
       setEditingMetadata(null);
+      setHasFetched(false);
     } catch (error) {
       console.error('Error saving metadata:', error);
       alert('Failed to save metadata');
     }
-  };
+  }, [selectedTemplate, editingMetadata, user?.id]);
 
-  const handleMetadataCancel = () => {
+  const handleMetadataCancel = useCallback(() => {
     setIsMetadataEditorOpen(false);
     setSelectedTemplate(null);
     setEditingMetadata(null);
-  };
+  }, []);
 
   if (!user) {
     return (

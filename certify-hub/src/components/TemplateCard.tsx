@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { Template } from '@/types/template';
 
 interface TemplateCardProps {
@@ -9,19 +9,19 @@ interface TemplateCardProps {
   onManageMetadata: (template: Template) => void;
 }
 
-export default function TemplateCard({ template, onDelete, onManageMetadata }: TemplateCardProps) {
+function TemplateCard({ template, onDelete, onManageMetadata }: TemplateCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const formatFileSize = (bytes: number) => {
+  const formatFileSize = useCallback((bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  }, []);
 
-  const getFileIcon = (fileType: string) => {
+  const getFileIcon = useCallback((fileType: string) => {
     if (fileType.startsWith('image/')) {
       return (
         <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,9 +41,9 @@ export default function TemplateCard({ template, onDelete, onManageMetadata }: T
         </svg>
       );
     }
-  };
+  }, []);
 
-  const copyShareUrl = async () => {
+  const copyShareUrl = useCallback(async () => {
     if (template.share_url) {
       try {
         await navigator.clipboard.writeText(template.share_url);
@@ -53,12 +53,20 @@ export default function TemplateCard({ template, onDelete, onManageMetadata }: T
         console.error('Failed to copy URL:', error);
       }
     }
-  };
+  }, [template.share_url]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     setShowDeleteConfirm(false);
     onDelete(template.id);
-  };
+  }, [template.id, onDelete]);
+
+  const handleViewTemplate = useCallback(() => {
+    window.open(template.file_url, '_blank');
+  }, [template.file_url]);
+
+  const handleManageMetadata = useCallback(() => {
+    onManageMetadata(template);
+  }, [template, onManageMetadata]);
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
@@ -105,7 +113,7 @@ export default function TemplateCard({ template, onDelete, onManageMetadata }: T
 
         <div className="flex space-x-2">
           <button
-            onClick={() => window.open(template.file_url, '_blank')}
+            onClick={handleViewTemplate}
             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 px-3 rounded-md transition-colors"
           >
             View Template
@@ -123,7 +131,7 @@ export default function TemplateCard({ template, onDelete, onManageMetadata }: T
 
         <div className="mt-3 flex space-x-2">
           <button
-            onClick={() => onManageMetadata(template)}
+            onClick={handleManageMetadata}
             className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm py-2 px-3 rounded-md transition-colors"
           >
             Manage Metadata
@@ -169,4 +177,7 @@ export default function TemplateCard({ template, onDelete, onManageMetadata }: T
       )}
     </div>
   );
-} 
+}
+
+// 使用memo包装组件并正确导出
+export default memo(TemplateCard); 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase, getSession } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -24,11 +24,13 @@ export default function LoginForm() {
       abortController.abort();
       setLoading(false);
       setMessage({ type: 'error', text: 'Login request timed out. Please try again.' });
-    }, 15000); // Increased to 15 seconds
+    }, 15000);
 
     try {
-      console.log('Attempting login for:', email);
+      console.log('🚀 Attempting login for:', email);
       
+      // 策略1: 链式处理，避免并发
+      // 策略4: 直接使用返回的session对象，避免重新请求
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -37,7 +39,7 @@ export default function LoginForm() {
       clearTimeout(timeoutId);
 
       if (error) {
-        console.error('Login error:', error);
+        console.error('❌ Login error:', error);
         
         // 提供更详细的错误信息
         let errorMessage = error.message;
@@ -53,30 +55,35 @@ export default function LoginForm() {
         
         setMessage({ type: 'error', text: errorMessage });
       } else {
-        console.log('Login successful:', data);
+        console.log('✅ Login successful:', data);
+        console.log('👤 User data:', data.user);
+        console.log('🔑 Session data:', data.session);
         
-        // Verify session was created properly
-        const session = await getSession();
-        if (session?.user) {
+        // 策略4: 直接使用返回的session对象，无需重新验证
+        if (data.session?.user) {
+          console.log('✅ Session verified from response, user:', data.session.user.id);
           setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
           
-          // Use Next.js router for better performance
+          // 策略3: 适当延时，等待AuthContext处理完状态变化
+          // 但使用更短的延时，因为我们已经有了session
           setTimeout(() => {
+            console.log('🔄 Redirecting to dashboard...');
             router.push('/dashboard');
-          }, 1000); // Reduced delay
+          }, 800); // 减少延迟，因为已经有了session
         } else {
-          setMessage({ type: 'error', text: 'Login succeeded but session not created. Please try again.' });
+          console.error('❌ No session in response');
+          setMessage({ type: 'error', text: 'Login succeeded but no session created. Please try again.' });
         }
       }
     } catch (error: unknown) {
       clearTimeout(timeoutId);
       
       if (abortController.signal.aborted) {
-        console.log('Login request was aborted');
+        console.log('⚠️ Login request was aborted');
         return;
       }
       
-      console.error('Login exception:', error);
+      console.error('❌ Login exception:', error);
       let errorMessage = 'Login failed. Please try again.';
       const errMsg = error instanceof Error ? error.message : '';
       
@@ -105,30 +112,30 @@ export default function LoginForm() {
     const timeoutId = setTimeout(() => {
       setLoading(false);
       setMessage({ type: 'error', text: 'Request timed out. Please try again.' });
-    }, 12000); // Increased timeout
+    }, 12000);
 
     try {
-      console.log('Sending password reset email to:', email);
+      console.log('📧 Sending password reset email to:', email);
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`
       });
 
-      clearTimeout(timeoutId); // 清除超时
+      clearTimeout(timeoutId);
 
       if (error) {
-        console.error('Password reset error:', error);
+        console.error('❌ Password reset error:', error);
         setMessage({ type: 'error', text: error.message });
       } else {
-        console.log('Password reset email sent successfully');
+        console.log('✅ Password reset email sent successfully');
         setMessage({ 
           type: 'success', 
           text: 'Password reset email sent! Please check your email for instructions.' 
         });
       }
     } catch (error: unknown) {
-      clearTimeout(timeoutId); // 清除超时
-      console.error('Password reset exception:', error);
+      clearTimeout(timeoutId);
+      console.error('❌ Password reset exception:', error);
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to send reset email. Please try again.' });
     } finally {
       setLoading(false);
