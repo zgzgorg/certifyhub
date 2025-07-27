@@ -2,32 +2,32 @@
 import React, { useState, useRef } from "react";
 import { v4 as uuidv4 } from 'uuid';
 import CertificatePreview from "@/components/CertificatePreview";
-import { TemplateSelector } from "@/components/TemplateSelector";
+import { TemplateGridSelector } from "@/components/TemplateGridSelector";
 import { FieldEditor } from "@/components/FieldEditor";
 import { PDFGenerateButton } from "@/components/PDFGenerateButton";
 import { BulkGenerationModal } from "@/components/BulkGenerationModal";
-import { useCertificateTemplates } from "@/hooks/useCertificateTemplates";
+import { useDatabaseTemplates } from "@/hooks/useDatabaseTemplates";
 import { useBulkGeneration } from "@/hooks/useBulkGeneration";
 import { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT } from "@/config/certificate";
 import { getNewFieldPosition } from "@/utils/template";
 import { CertificatePreviewRef } from "@/types/certificate";
-
+import { CertificateField } from "@/types/certificate";
+import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function CertificateGeneratePage() {
+  const { user } = useAuth();
   const [newFieldLabel, setNewFieldLabel] = useState("");
   const previewRef = useRef<CertificatePreviewRef | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [templateFields, setTemplateFields] = useState<Record<string, CertificateField[]>>({});
 
-  // Template management
+  // Database templates
   const {
     templates,
-    selectedTemplate,
-    selectedTemplateObj,
-    selectTemplate,
-    uploadTemplate,
-    deleteTemplate,
-    getCurrentFields,
-    updateCurrentTemplateFields,
-  } = useCertificateTemplates();
+    loading: templatesLoading,
+    refetch: refetchTemplates,
+  } = useDatabaseTemplates();
 
   // Bulk generation
   const {
@@ -48,12 +48,246 @@ export default function CertificateGeneratePage() {
     clearError,
   } = useBulkGeneration();
 
-  const fields = getCurrentFields();
+  const selectedTemplateObj = selectedTemplate 
+    ? templates.find(tpl => tpl.id === selectedTemplate) || null 
+    : null;
+
+  const fields = templateFields[selectedTemplate || ''] || [];
 
   // Current editable fields (excluding hidden fields)
   const editableFields = fields.filter(f => f.showInPreview);
 
+  // Load template metadata and initialize fields
+  const loadTemplateMetadata = async (templateId: string) => {
+    if (!user) return;
 
+    try {
+      // First try to get user's default metadata for this template
+      const { data: userMetadata, error: userError } = await supabase
+        .from('template_metadata')
+        .select('*')
+        .eq('template_id', templateId)
+        .eq('user_id', user.id)
+        .eq('is_default', true)
+        .single();
+
+             if (userMetadata && !userError) {
+         // Use user's default metadata
+         const metadataFields = userMetadata.metadata.map((field: {
+           id: string;
+           label: string;
+           position: { x: number; y: number };
+           required: boolean;
+           fontSize: number;
+           fontFamily: string;
+           color: string;
+           textAlign: 'left' | 'center' | 'right';
+           showInPreview: boolean;
+         }) => ({
+          id: field.id,
+          label: field.label,
+          value: '',
+          position: field.position,
+          required: field.required,
+          fontSize: field.fontSize,
+          fontFamily: field.fontFamily,
+          color: field.color,
+          textAlign: field.textAlign,
+          showInPreview: field.showInPreview,
+        }));
+        setTemplateFields(prev => ({ ...prev, [templateId]: metadataFields }));
+        return;
+      }
+
+      // If no user metadata, try to get any metadata for this template
+      const { data: anyMetadata, error: anyError } = await supabase
+        .from('template_metadata')
+        .select('*')
+        .eq('template_id', templateId)
+        .eq('is_default', true)
+        .limit(1)
+        .single();
+
+             if (anyMetadata && !anyError) {
+         // Use any available default metadata
+         const metadataFields = anyMetadata.metadata.map((field: {
+           id: string;
+           label: string;
+           position: { x: number; y: number };
+           required: boolean;
+           fontSize: number;
+           fontFamily: string;
+           color: string;
+           textAlign: 'left' | 'center' | 'right';
+           showInPreview: boolean;
+         }) => ({
+          id: field.id,
+          label: field.label,
+          value: '',
+          position: field.position,
+          required: field.required,
+          fontSize: field.fontSize,
+          fontFamily: field.fontFamily,
+          color: field.color,
+          textAlign: field.textAlign,
+          showInPreview: field.showInPreview,
+        }));
+        setTemplateFields(prev => ({ ...prev, [templateId]: metadataFields }));
+        return;
+      }
+
+      // If no metadata found, use default fields
+      const defaultFields: CertificateField[] = [
+        { 
+          id: 'name', 
+          label: 'Name', 
+          value: '', 
+          position: { x: 285, y: 180 }, 
+          required: true, 
+          fontSize: 32, 
+          fontFamily: 'serif', 
+          color: '#1a237e', 
+          showInPreview: true 
+        },
+        { 
+          id: 'date', 
+          label: 'Date', 
+          value: '', 
+          position: { x: 285, y: 280 }, 
+          required: true, 
+          fontSize: 20, 
+          fontFamily: 'serif', 
+          color: '#333333', 
+          showInPreview: true 
+        },
+        { 
+          id: 'certificateId', 
+          label: 'Certificate ID', 
+          value: '', 
+          position: { x: 480, y: 400 }, 
+          required: true, 
+          fontSize: 14, 
+          fontFamily: 'monospace', 
+          color: '#888888', 
+          showInPreview: true 
+        },
+      ];
+      setTemplateFields(prev => ({ ...prev, [templateId]: defaultFields }));
+    } catch (error) {
+      console.error('Error loading template metadata:', error);
+      // Fallback to default fields
+      const defaultFields: CertificateField[] = [
+        { 
+          id: 'name', 
+          label: 'Name', 
+          value: '', 
+          position: { x: 285, y: 180 }, 
+          required: true, 
+          fontSize: 32, 
+          fontFamily: 'serif', 
+          color: '#1a237e', 
+          showInPreview: true 
+        },
+        { 
+          id: 'date', 
+          label: 'Date', 
+          value: '', 
+          position: { x: 285, y: 280 }, 
+          required: true, 
+          fontSize: 20, 
+          fontFamily: 'serif', 
+          color: '#333333', 
+          showInPreview: true 
+        },
+        { 
+          id: 'certificateId', 
+          label: 'Certificate ID', 
+          value: '', 
+          position: { x: 480, y: 400 }, 
+          required: true, 
+          fontSize: 14, 
+          fontFamily: 'monospace', 
+          color: '#888888', 
+          showInPreview: true 
+        },
+      ];
+      setTemplateFields(prev => ({ ...prev, [templateId]: defaultFields }));
+    }
+  };
+
+  // Template management handlers
+  const handleTemplateSelect = async (templateId: string) => {
+    setSelectedTemplate(templateId);
+    
+    // Initialize fields for template if not exists
+    if (!templateFields[templateId]) {
+      await loadTemplateMetadata(templateId);
+    }
+  };
+
+  const handleTemplateUpload = (): boolean => {
+    // For now, just return false - template upload should be handled in the templates page
+    alert("Please upload templates from the Templates page first.");
+    return false;
+  };
+
+  const handleTemplateDelete = async (templateId: string) => {
+    if (!user) return;
+    
+    try {
+      // Delete from storage first
+      const template = templates.find(t => t.id === templateId);
+      if (template?.file_url) {
+        const filePath = template.file_url.split('/').pop();
+        if (filePath) {
+          await supabase.storage
+            .from('templates')
+            .remove([filePath]);
+        }
+      }
+      
+      // Delete from database
+      const { error } = await supabase
+        .from('templates')
+        .delete()
+        .eq('id', templateId);
+      
+      if (error) throw error;
+      
+      // Clean up stored fields for this template
+      setTemplateFields(prev => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [templateId]: removed, ...rest } = prev;
+        return rest;
+      });
+      
+      if (selectedTemplate === templateId) {
+        setSelectedTemplate(null);
+      }
+      
+      // Refetch templates
+      refetchTemplates();
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      alert('Failed to delete template');
+    }
+  };
+
+  // const getCurrentFields = (): CertificateField[] => {
+  //   if (!selectedTemplate) return [];
+  //   return templateFields[selectedTemplate] || [];
+  // };
+
+  const updateCurrentTemplateFields = (
+    updater: (fields: CertificateField[]) => CertificateField[]
+  ) => {
+    if (!selectedTemplate) return;
+    
+    setTemplateFields(prev => ({
+      ...prev,
+      [selectedTemplate]: updater(prev[selectedTemplate] || [])
+    }));
+  };
 
   // Field management handlers
   const handleFieldChange = (id: string, value: string) => {
@@ -83,6 +317,7 @@ export default function CertificateGeneratePage() {
   const handleFieldShowToggle = (id: string, show: boolean) => {
     updateCurrentTemplateFields(fields => fields.map(f => f.id === id ? { ...f, showInPreview: show } : f));
   };
+
   const handleAddField = () => {
     if (!newFieldLabel.trim() || !selectedTemplate) return;
     
@@ -113,7 +348,6 @@ export default function CertificateGeneratePage() {
     updateCurrentTemplateFields(fields => fields.map(f => f.id === id ? { ...f, position: { x, y } } : f));
   };
 
-
   // Bulk generation handlers
   const handleBulkPasteWrapper = (e: React.ClipboardEvent<HTMLDivElement>) => {
     handleBulkPaste(e, editableFields);
@@ -125,10 +359,16 @@ export default function CertificateGeneratePage() {
 
   const handleBulkExportPDFWrapper = () => {
     if (selectedTemplateObj) {
-      handleBulkExportPDF(selectedTemplateObj, editableFields, previewRef);
+      // Convert Template to CertificateTemplate for bulk export
+      const certificateTemplate = {
+        id: selectedTemplateObj.id,
+        name: selectedTemplateObj.name,
+        description: selectedTemplateObj.description || '',
+        thumbnail: selectedTemplateObj.file_url,
+      };
+      handleBulkExportPDF(certificateTemplate, editableFields, previewRef);
     }
   };
-
 
   return (
     <div className="min-h-screen w-full bg-gray-50 flex flex-col items-center py-10">
@@ -137,12 +377,13 @@ export default function CertificateGeneratePage() {
         <div className="flex-1 min-w-[320px] max-w-md space-y-6 bg-white rounded-xl shadow p-6">
           <h2 className="text-2xl font-bold mb-4">Generate Certificate</h2>
           
-          <TemplateSelector
+          <TemplateGridSelector
             templates={templates}
             selectedTemplate={selectedTemplate}
-            onTemplateSelect={selectTemplate}
-            onTemplateUpload={uploadTemplate}
-            onTemplateDelete={deleteTemplate}
+            onTemplateSelect={handleTemplateSelect}
+            onTemplateUpload={handleTemplateUpload}
+            onTemplateDelete={handleTemplateDelete}
+            loading={templatesLoading}
           />
           
           <FieldEditor
@@ -166,7 +407,12 @@ export default function CertificateGeneratePage() {
             {selectedTemplateObj ? (
               <CertificatePreview
                 ref={previewRef}
-                template={selectedTemplateObj}
+                template={{
+                  id: selectedTemplateObj.id,
+                  name: selectedTemplateObj.name,
+                  description: selectedTemplateObj.description || '',
+                  thumbnail: selectedTemplateObj.file_url,
+                }}
                 fields={fields}
                 onFieldPositionChange={handleFieldPositionChange}
                 maxWidth={MAX_PREVIEW_WIDTH}
