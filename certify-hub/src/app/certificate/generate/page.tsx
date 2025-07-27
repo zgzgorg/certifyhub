@@ -399,6 +399,7 @@ export default function CertificateGeneratePage() {
             onFieldShowToggle={handleFieldShowToggle}
             onFieldDelete={handleDeleteField}
             onFieldAdd={handleAddField}
+            defaultShowDetails={false}
           />
         </div>
         {/* Right: Preview Area */}
@@ -424,24 +425,26 @@ export default function CertificateGeneratePage() {
               </div>
             )}
           </div>
+          {/* Action Buttons below preview */}
+          <div className="w-full flex justify-center mt-6 gap-4">
+            <PDFGenerateButton
+              previewRef={previewRef}
+              fields={fields}
+              filename="sample_certificate.pdf"
+              variant="secondary"
+              className="px-6 py-2"
+              disabled={!selectedTemplateObj}
+            >
+              Generate Sample
+            </PDFGenerateButton>
+            <button
+              className="px-6 py-2 rounded-md bg-indigo-600 text-white font-semibold shadow-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              onClick={() => setBulkOpen(true)}
+            >
+              Bulk Generation
+            </button>
+          </div>
         </div>
-      </div>
-      {/* Bottom: Action Button */}
-      <div className="w-full max-w-5xl flex justify-end mt-8 gap-4">
-        <PDFGenerateButton
-          previewRef={previewRef}
-          fields={fields}
-          filename="certificate.pdf"
-          variant="primary"
-          className="px-6 py-2"
-          disabled={!selectedTemplateObj}
-        />
-        <button
-          className="px-6 py-2 rounded-md bg-green-600 text-white font-semibold shadow disabled:opacity-50"
-          onClick={() => setBulkOpen(true)}
-        >
-          Bulk Generation
-        </button>
       </div>
       <BulkGenerationModal
         open={bulkOpen}

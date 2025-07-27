@@ -410,6 +410,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
               onFieldShowToggle={handleFieldShowToggle}
               onFieldDelete={handleDeleteField}
               onFieldAdd={handleAddField}
+              defaultShowDetails={true}
             />
           </div>
 
