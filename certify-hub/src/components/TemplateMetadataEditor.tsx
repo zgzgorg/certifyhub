@@ -90,7 +90,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
       }
     }
     
-    // Calculate center position
+    // Calculate center position (this will be the anchor point)
     const centerX = templateWidth / 2;
     const centerY = templateHeight / 2;
     
@@ -98,6 +98,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
     const fontSize = Math.max(12, Math.min(48, Math.round(templateHeight / 10)));
     
     // Position new field in center, with slight offset for multiple fields
+    // This position represents the anchor point, not the text corner
     const position = {
       x: centerX,
       y: centerY + (fields.length * 30) // Offset each new field by 30px
@@ -109,13 +110,13 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
         id: uuidv4(),
         label: newFieldLabel.trim(),
         value: '',
-        position,
+        position, // This is the anchor point position
         required: false,
         fontSize,
         fontFamily: 'serif',
         color: '#1a237e',
         showInPreview: true,
-        textAlign: 'center',
+        textAlign: 'center', // Default to center alignment for new fields
       },
     ]);
     setNewFieldLabel("");
@@ -205,6 +206,8 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
                   <ul className="text-sm text-blue-700 space-y-1">
                     <li>• Add new fields using the "Add Field" section below</li>
                     <li>• Drag fields in the preview to position them on the certificate</li>
+                    <li>• <strong>Anchor Point System:</strong> The dot shows the anchor point - text will align relative to this point</li>
+                    <li>• <strong>Text Alignment:</strong> Left/center/right alignment keeps the anchor point fixed while text expands</li>
                     <li>• Customize font size, family, color, and alignment for each field</li>
                     <li>• Toggle "Show in Preview" to control field visibility</li>
                   </ul>

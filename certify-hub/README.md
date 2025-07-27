@@ -37,5 +37,4 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Know issue tracking
 
-- [ ] Field box alignment only works for "Left", bulk generation might look wield for strings with different length and want align on center and right.
 - [ ] Signup will be disable for now before moving to prod database.

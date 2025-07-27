@@ -70,8 +70,11 @@ const CertificatePreview = forwardRef(function CertificatePreview({
   }
 
   const handleDragStop = (id: string, x: number, y: number) => {
-    // Simply store the element's top-left corner position
-    onFieldPositionChange(id, x / scale, y / scale);
+    // Store the anchor point position (not the text corner position)
+    // Convert from scaled coordinates to original coordinates
+    const originalX = x / scale;
+    const originalY = y / scale;
+    onFieldPositionChange(id, originalX, originalY);
   };
 
   // Create a temporary clean certificate element for PDF export
@@ -110,16 +113,24 @@ const CertificatePreview = forwardRef(function CertificatePreview({
         fontFamily
       );
       
-      // field.position stores the top-left corner position
-      const startX = field.position.x;
-      const startY = field.position.y;
+      // field.position stores the anchor point position
+      const anchorX = field.position.x;
+      const anchorY = field.position.y;
       const textAlign = field.textAlign || 'center';
       
-      // Adjust vertical position to account for vertical centering in preview
-      const adjustedStartY = startY - textHeight / 2;
+      // Calculate actual render position based on anchor point and text alignment
+      let renderX = anchorX;
+      if (textAlign === 'center') {
+        renderX = anchorX - textWidth / 2;
+      } else if (textAlign === 'right') {
+        renderX = anchorX - textWidth;
+      }
       
-      fieldDiv.style.left = `${startX}px`;
-      fieldDiv.style.top = `${adjustedStartY}px`;
+      // Adjust vertical position to account for vertical centering
+      const renderY = anchorY - textHeight / 2;
+      
+      fieldDiv.style.left = `${renderX}px`;
+      fieldDiv.style.top = `${renderY}px`;
       fieldDiv.style.fontSize = `${fontSize}px`;
       fieldDiv.style.fontFamily = fontFamily;
       fieldDiv.style.color = field.color || '#000000';
@@ -231,47 +242,76 @@ const CertificatePreview = forwardRef(function CertificatePreview({
           const hasValue = Boolean(field.value?.trim());
           const fontSize = (field.fontSize ?? 16) * scale;
           
-          // Use the stored position directly (top-left corner)
-          const elementX = field.position.x * scale;
-          const elementY = field.position.y * scale;
+          // Calculate text dimensions for positioning
+          const { width: textWidth, height: textHeight } = calculateTextDimensions(
+            hasValue ? field.value : '[Empty]',
+            fontSize / scale, // Convert back to original scale for calculation
+            field.fontFamily
+          );
           
-          // Calculate transform based on text alignment
+          // Use the stored anchor point position
+          const anchorX = field.position.x * scale;
+          const anchorY = field.position.y * scale;
+          
+          // Calculate actual render position based on anchor point and text alignment
           const textAlign = field.textAlign || 'center';
-          const getTransform = () => {
-            switch (textAlign) {
-              case 'left': return 'translate(0%, -50%)';
-              case 'right': return 'translate(-100%, -50%)';
-              case 'center':
-              default: return 'translate(-50%, -50%)';
-            }
-          };
+          let renderX = anchorX;
+          if (textAlign === 'center') {
+            renderX = anchorX - (textWidth * scale) / 2;
+          } else if (textAlign === 'right') {
+            renderX = anchorX - textWidth * scale;
+          }
           
-          return (
-            <Draggable
-              key={field.id}
-              position={{ x: elementX, y: elementY }}
-              onStart={() => setDraggingId(field.id)}
-              onStop={(_, data) => {
-                setDraggingId(null);
-                handleDragStop(field.id, data.x, data.y);
-              }}
-              bounds="parent"
-              nodeRef={nodeRefs.current[field.id]}
-            >
-              <div
-                ref={nodeRefs.current[field.id]}
-                data-field-id={field.id}
-                className="absolute select-none transition-all duration-200"
-                style={{
-                  zIndex: 2,
-                  left: 0,
-                  top: 0,
-                  transform: getTransform(),
-                  cursor: isDragging ? 'grabbing' : 'grab',
-                  userSelect: 'none',
+          // Vertical centering
+          const renderY = anchorY - (textHeight * scale) / 2;
+          
+                      return (
+              <Draggable
+                key={field.id}
+                position={{ x: renderX, y: renderY }}
+                onStart={() => setDraggingId(field.id)}
+                onStop={(_, data) => {
+                  setDraggingId(null);
+                  // The data.x and data.y are the new render positions
+                  // We need to convert them back to anchor point positions
+                  let newAnchorX = data.x;
+                  let newAnchorY = data.y;
+                  
+                  // Recalculate text dimensions to ensure accuracy
+                  const { width: currentTextWidth, height: currentTextHeight } = calculateTextDimensions(
+                    hasValue ? field.value : '[Empty]',
+                    fontSize / scale,
+                    field.fontFamily
+                  );
+                  
+                  // Add back the offset based on text alignment (scale the text dimensions)
+                  if (textAlign === 'center') {
+                    newAnchorX += (currentTextWidth * scale) / 2;
+                  } else if (textAlign === 'right') {
+                    newAnchorX += currentTextWidth * scale;
+                  }
+                  
+                  // Add back the vertical offset (scale the text dimensions)
+                  newAnchorY += (currentTextHeight * scale) / 2;
+                  
+                  handleDragStop(field.id, newAnchorX, newAnchorY);
                 }}
-                title={`${field.label}: ${field.value || '[Empty]'}`}
+                bounds="parent"
+                nodeRef={nodeRefs.current[field.id]}
               >
+                <div
+                  ref={nodeRefs.current[field.id]}
+                  data-field-id={field.id}
+                  className="absolute select-none transition-all duration-200"
+                  style={{
+                    zIndex: 2,
+                    left: 0,
+                    top: 0,
+                    cursor: isDragging ? 'grabbing' : 'grab',
+                    userSelect: 'none',
+                  }}
+                  title={`${field.label}: ${field.value || '[Empty]'}`}
+                >
                 {/* Main content - always shows the field value */}
                 <div
                   style={{
@@ -287,6 +327,24 @@ const CertificatePreview = forwardRef(function CertificatePreview({
                     <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>[Empty]</span>
                   }
                 </div>
+                
+                {/* Anchor point indicator */}
+                <div
+                  className="absolute"
+                  style={{
+                    left: textAlign === 'center' ? '50%' : textAlign === 'right' ? '100%' : '0%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '8px',
+                    height: '8px',
+                    backgroundColor: isDragging ? '#4f46e5' : '#6b7280',
+                    borderRadius: '50%',
+                    border: '2px solid white',
+                    boxShadow: '0 0 0 1px #000',
+                    opacity: isDragging ? 1 : 0.3,
+                    pointerEvents: 'none',
+                  }}
+                />
                 
                 {/* Overlay during drag - shows field info */}
                 {isDragging && (

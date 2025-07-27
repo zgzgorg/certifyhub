@@ -9,7 +9,7 @@ export type CertificateField = {
   id: string;
   label: string;
   value: string;
-  position: { x: number; y: number };
+  position: { x: number; y: number }; // Anchor point position (not text corner)
   required: boolean;
   showInPreview?: boolean;
   fontSize?: number;
