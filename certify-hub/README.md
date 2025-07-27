@@ -38,3 +38,4 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ## Know issue tracking
 
 - [ ] Signup will be disable for now before moving to prod database.
+- [ ] For template metadata editing page, if we generated sample pdf, saving metadata won't actually work.

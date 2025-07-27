@@ -63,11 +63,10 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
 
   // Force reset function that also resets preview
   const forceResetState = useCallback(() => {
-    // Restore original fields before resetting
-    restoreOriginalFields();
+    // Don't restore original fields when force resetting - this is used after save
     resetState();
     setPreviewKey(prev => prev + 1);
-  }, [restoreOriginalFields, resetState]);
+  }, [resetState]);
 
   // Load existing metadata when component mounts
   useEffect(() => {
@@ -288,9 +287,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
       return;
     }
 
-    // Restore original fields before saving
-    restoreOriginalFields();
-
+    // Don't restore original fields - save the current state including any modifications from PDF generation
     const templateMetadata: TemplateMetadata = {
       id: existingMetadata?.id || '',
       template_id: template.id,

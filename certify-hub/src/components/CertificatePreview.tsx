@@ -3,6 +3,8 @@
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import Draggable from 'react-draggable';
 import { CertificatePreviewProps } from '@/types/certificate';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const CertificatePreview = forwardRef(function CertificatePreview({
   template,
@@ -168,57 +170,60 @@ const CertificatePreview = forwardRef(function CertificatePreview({
     }),
     
     async exportToPDF(filename = 'certificate.pdf', returnBlob = false) {
-      const html2canvas = (await import('html2canvas')).default;
-      const jsPDF = (await import('jspdf')).jsPDF;
-      
-      if (!isImgLoaded) return;
-      
-      // Create clean certificate element
-      const cleanElement = createCleanCertificateElement();
-      if (!cleanElement) return;
-      
-      // Temporarily add to DOM for rendering (positioned off-screen)
-      cleanElement.style.position = 'fixed';
-      cleanElement.style.left = '-9999px';
-      cleanElement.style.top = '-9999px';
-      document.body.appendChild(cleanElement);
-      
       try {
-        // Wait for image to load in clean element
-        const img = cleanElement.querySelector('img');
-        if (img && !img.complete) {
-          await new Promise(resolve => {
-            img.onload = resolve;
-            img.onerror = resolve;
+        
+        if (!isImgLoaded) return;
+        
+        // Create clean certificate element
+        const cleanElement = createCleanCertificateElement();
+        if (!cleanElement) return;
+        
+        // Temporarily add to DOM for rendering (positioned off-screen)
+        cleanElement.style.position = 'fixed';
+        cleanElement.style.left = '-9999px';
+        cleanElement.style.top = '-9999px';
+        document.body.appendChild(cleanElement);
+        
+        try {
+          // Wait for image to load in clean element
+          const img = cleanElement.querySelector('img');
+          if (img && !img.complete) {
+            await new Promise(resolve => {
+              img.onload = resolve;
+              img.onerror = resolve;
+            });
+          }
+          
+          // Capture the clean certificate
+          const canvas = await html2canvas(cleanElement, { 
+            useCORS: true, 
+            backgroundColor: 'white',
+            scale: 1,
+            width: imgSize.width,
+            height: imgSize.height
           });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new jsPDF({
+            orientation: canvas.width > canvas.height ? 'l' : 'p',
+            unit: 'px',
+            format: [canvas.width, canvas.height],
+          });
+          
+          pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+          
+          if (returnBlob) {
+            return pdf.output('blob');
+          } else {
+            pdf.save(filename);
+          }
+        } finally {
+          // Remove temporary element
+          document.body.removeChild(cleanElement);
         }
-        
-        // Capture the clean certificate
-        const canvas = await html2canvas(cleanElement, { 
-          useCORS: true, 
-          backgroundColor: 'white',
-          scale: 1,
-          width: imgSize.width,
-          height: imgSize.height
-        });
-        
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF({
-          orientation: canvas.width > canvas.height ? 'l' : 'p',
-          unit: 'px',
-          format: [canvas.width, canvas.height],
-        });
-        
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-        
-        if (returnBlob) {
-          return pdf.output('blob');
-        } else {
-          pdf.save(filename);
-        }
-      } finally {
-        // Remove temporary element
-        document.body.removeChild(cleanElement);
+      } catch (error) {
+        console.error('Error in exportToPDF:', error);
+        throw error;
       }
     }
   }));
