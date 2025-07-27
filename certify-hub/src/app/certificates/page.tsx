@@ -249,6 +249,34 @@ export default function CertificatesPage() {
     }
   };
 
+  // 从URL中提取文件路径的辅助函数
+  const extractFilePathFromUrl = (url: string): { bucket: string; filePath: string } | null => {
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(part => part !== '');
+      
+      // 支持多种Supabase Storage URL格式
+      // 格式1: /storage/v1/object/public/bucket/filepath
+      // 格式2: /storage/v1/object/authenticated/bucket/filepath
+      const objectIndex = pathParts.findIndex(part => part === 'object');
+      
+      if (objectIndex !== -1 && objectIndex + 3 < pathParts.length) {
+        const bucket = pathParts[objectIndex + 2];
+        const filePath = pathParts.slice(objectIndex + 3).join('/');
+        
+        if (bucket && filePath) {
+          return { bucket, filePath };
+        }
+      }
+      
+      console.warn('Unable to parse storage URL format:', url);
+      return null;
+    } catch (error) {
+      console.error('Error extracting file path from URL:', error);
+      return null;
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (!certificateToDelete) return;
 
@@ -256,6 +284,37 @@ export default function CertificatesPage() {
       setIsDeleting(true);
       setError(null);
 
+      // 首先删除PDF文件（如果存在）
+      if (certificateToDelete.pdf_url) {
+        console.log('Attempting to delete PDF file:', certificateToDelete.pdf_url);
+        
+        const fileInfo = extractFilePathFromUrl(certificateToDelete.pdf_url);
+        console.log('Extracted file info:', fileInfo);
+        
+        if (fileInfo) {
+          const { bucket, filePath } = fileInfo;
+          console.log(`Deleting from bucket: ${bucket}, file path: ${filePath}`);
+          
+          const { error: storageError } = await supabase.storage
+            .from(bucket)
+            .remove([filePath]);
+
+          if (storageError) {
+            console.warn('Failed to delete PDF file from storage:', storageError);
+            // 继续删除数据库记录，即使文件删除失败
+          } else {
+            console.log('Successfully deleted PDF file from storage');
+          }
+        } else {
+          console.warn('Could not extract file info from URL:', certificateToDelete.pdf_url);
+        }
+      } else {
+        console.log('No PDF URL found for certificate');
+      }
+
+
+
+      // 删除数据库记录
       const { error } = await supabase
         .from('certificates')
         .delete()
@@ -568,8 +627,15 @@ export default function CertificatesPage() {
             <strong>{certificateToDelete?.recipient_email}</strong>?
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            This action cannot be undone. The certificate will be permanently removed from the system.
+            This action cannot be undone. The certificate and its associated PDF file will be permanently removed from the system.
           </Typography>
+          {certificateToDelete?.pdf_url && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="body2">
+                The associated PDF file will also be deleted from storage.
+              </Typography>
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCancelDelete} disabled={isDeleting}>Cancel</Button>
