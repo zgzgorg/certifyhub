@@ -10,6 +10,9 @@ export const validateHeader = (header: string[], editableFields: CertificateFiel
   const fieldLabels = editableFields.map(f => f.label);
   const fieldSet = new Set(fieldLabels);
   
+  // Add recipientEmail as an optional field
+  fieldSet.add('Recipient Email');
+  
   const missingFields = fieldLabels.filter(label => !headerSet.has(label));
   const extraFields = header.filter(h => h.trim() && !fieldSet.has(h.trim()));
   
@@ -39,7 +42,7 @@ export const parseExcelData = (text: string, editableFields: CertificateField[])
     if (!validation.isValid) {
       const errorMsg = `Header validation failed. Missing fields: ${validation.missingFields.join(', ')}. ` +
         (validation.extraFields.length > 0 ? `Extra fields: ${validation.extraFields.join(', ')}. ` : '') +
-        `Required fields: ${editableFields.map(f => f.label).join(', ')}.`;
+        `Required fields: ${editableFields.map(f => f.label).join(', ')}. Optional: Recipient Email.`;
       return { rows: [], error: errorMsg };
     }
     
@@ -48,6 +51,12 @@ export const parseExcelData = (text: string, editableFields: CertificateField[])
       const idx = header.findIndex(h => h.trim() === f.label.trim());
       return { id: f.id, idx };
     });
+    
+    // Add recipientEmail field mapping
+    const recipientEmailIdx = header.findIndex(h => h.trim() === 'Recipient Email');
+    if (recipientEmailIdx >= 0) {
+      fieldMap.push({ id: 'recipientEmail', idx: recipientEmailIdx });
+    }
     
     const newRows = dataRows.map((cols) => {
       const row: BulkGenerationRow = { id: uuidv4() };
@@ -109,7 +118,7 @@ export const parseExcelFile = (
         if (!validation.isValid) {
           const errorMsg = `Header validation failed. Missing fields: ${validation.missingFields.join(', ')}. ` +
             (validation.extraFields.length > 0 ? `Extra fields: ${validation.extraFields.join(', ')}. ` : '') +
-            `Required fields: ${editableFields.map(f => f.label).join(', ')}.`;
+            `Required fields: ${editableFields.map(f => f.label).join(', ')}. Optional: Recipient Email.`;
           resolve({ rows: [], error: errorMsg });
           return;
         }
@@ -118,6 +127,12 @@ export const parseExcelFile = (
           const idx = header.findIndex((h) => String(h).trim() === f.label.trim());
           return { id: f.id, idx };
         });
+        
+        // Add recipientEmail field mapping
+        const recipientEmailIdx = header.findIndex((h) => String(h).trim() === 'Recipient Email');
+        if (recipientEmailIdx >= 0) {
+          fieldMap.push({ id: 'recipientEmail', idx: recipientEmailIdx });
+        }
         
         const newRows = dataRows.map((cols: unknown[]) => {
           const row: BulkGenerationRow = { id: uuidv4() };

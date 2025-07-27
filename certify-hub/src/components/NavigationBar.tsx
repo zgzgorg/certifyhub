@@ -20,6 +20,11 @@ export default function NavigationBar() {
           <Link href="/certificate/templates" className="text-gray-700 hover:text-blue-700 font-medium">
             Templates
           </Link>
+          {organization && organization.status === 'approved' && (
+            <Link href="/certificates" className="text-gray-700 hover:text-blue-700 font-medium">
+              Certificates
+            </Link>
+          )}
         </div>
 
         <div className="flex items-center gap-4">

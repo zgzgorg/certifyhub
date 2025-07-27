@@ -39,7 +39,8 @@ export type CertificatePreviewProps = {
 
 export type BulkGenerationRow = {
   id: string;
-  [key: string]: string;
+  recipientEmail?: string;
+  [key: string]: string | undefined;
 };
 
 export type FontFamily = {

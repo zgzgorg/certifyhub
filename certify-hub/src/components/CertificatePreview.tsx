@@ -172,11 +172,17 @@ const CertificatePreview = forwardRef(function CertificatePreview({
     async exportToPDF(filename = 'certificate.pdf', returnBlob = false) {
       try {
         
-        if (!isImgLoaded) return;
+        if (!isImgLoaded) {
+          console.log('exportToPDF: Image not loaded yet');
+          return;
+        }
         
         // Create clean certificate element
         const cleanElement = createCleanCertificateElement();
-        if (!cleanElement) return;
+        if (!cleanElement) {
+          console.log('exportToPDF: Failed to create clean element');
+          return;
+        }
         
         // Temporarily add to DOM for rendering (positioned off-screen)
         cleanElement.style.position = 'fixed';
@@ -188,19 +194,29 @@ const CertificatePreview = forwardRef(function CertificatePreview({
           // Wait for image to load in clean element
           const img = cleanElement.querySelector('img');
           if (img && !img.complete) {
-            await new Promise(resolve => {
+            await new Promise((resolve, reject) => {
               img.onload = resolve;
-              img.onerror = resolve;
+              img.onerror = (e) => {
+                console.error('Image failed to load:', e);
+                reject(new Error('Image failed to load'));
+              };
+              // Set a timeout in case the image never loads
+              setTimeout(() => {
+                console.log('Image load timeout');
+                resolve(null);
+              }, 5000);
             });
           }
           
           // Capture the clean certificate
+          console.log('Starting html2canvas with dimensions:', imgSize.width, 'x', imgSize.height);
           const canvas = await html2canvas(cleanElement, { 
             useCORS: true, 
             backgroundColor: 'white',
             scale: 1,
             width: imgSize.width,
-            height: imgSize.height
+            height: imgSize.height,
+            logging: true // Enable logging for debugging
           });
           
           const imgData = canvas.toDataURL('image/png');

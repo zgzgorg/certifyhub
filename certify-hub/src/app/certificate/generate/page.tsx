@@ -519,6 +519,13 @@ export default function CertificateGeneratePage() {
         onBulkFile={handleBulkFileWrapper}
         onBulkExportPDF={handleBulkExportPDFWrapper}
         onClearError={clearError}
+        templateId={selectedTemplate || undefined}
+        selectedTemplate={selectedTemplateObj ? {
+          id: selectedTemplateObj.id,
+          name: selectedTemplateObj.name,
+          description: selectedTemplateObj.description || '',
+          thumbnail: selectedTemplateObj.preview_url || selectedTemplateObj.file_url
+        } : undefined}
       />
     </div>
   );

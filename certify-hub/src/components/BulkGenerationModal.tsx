@@ -15,11 +15,17 @@ import {
   Alert,
   Collapse,
   Box,
-  Typography
+  Typography,
+  FormControlLabel,
+  Switch,
+  Chip
 } from "@mui/material";
 import CloseIcon from '@mui/icons-material/Close';
 import InfoIcon from '@mui/icons-material/Info';
-import { CertificateField, BulkGenerationRow } from '@/types/certificate';
+import VerifiedIcon from '@mui/icons-material/Verified';
+import { CertificateField, BulkGenerationRow, CertificateTemplate } from '@/types/certificate';
+import { useAuth } from '@/contexts/AuthContext';
+import { useCertificateIssuance, DuplicateCertificate } from '@/hooks/useCertificateIssuance';
 
 interface BulkGenerationModalProps {
   open: boolean;
@@ -38,6 +44,8 @@ interface BulkGenerationModalProps {
   onBulkFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onBulkExportPDF: () => void;
   onClearError: () => void;
+  templateId?: string;
+  selectedTemplate?: CertificateTemplate;
 }
 
 export const BulkGenerationModal: React.FC<BulkGenerationModalProps> = ({
@@ -57,10 +65,73 @@ export const BulkGenerationModal: React.FC<BulkGenerationModalProps> = ({
   onBulkFile,
   onBulkExportPDF,
   onClearError,
+  templateId,
+  selectedTemplate,
 }) => {
   const [showInstructions, setShowInstructions] = useState(false);
+  const [issueMode, setIssueMode] = useState(false);
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicates, setDuplicates] = useState<DuplicateCertificate[]>([]);
+  const [issuanceResult, setIssuanceResult] = useState<any>(null);
 
-  const canExport = bulkRows.length > 0 && !exporting;
+  const { organization } = useAuth();
+  const { issuing, progress, error: issuanceError, issueCertificates, clearError } = useCertificateIssuance();
+
+  const canExport = bulkRows.length > 0 && !exporting && !issuing;
+  const isVerifiedOrganization = organization?.status === 'approved';
+
+  const handleIssueCertificates = async () => {
+    if (!templateId || !selectedTemplate) {
+      console.error('Template is required for certificate issuance');
+      return;
+    }
+
+    try {
+      const result = await issueCertificates(templateId, bulkRows, editableFields, selectedTemplate, false);
+      
+      if (result.success) {
+        if (result.duplicates.length > 0) {
+          setDuplicates(result.duplicates);
+          setShowDuplicateDialog(true);
+        } else {
+          setIssuanceResult(result);
+          // Show success message
+          alert(`Successfully issued ${result.issuedCount} certificates. You can check your issued certificates in "Certificates" Page.`);
+        }
+      } else {
+        alert(`Error: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error issuing certificates:', error);
+      alert('Error issuing certificates. Please try again.');
+    }
+  };
+
+  const handleUpdateDuplicates = async () => {
+    if (!templateId || !selectedTemplate) return;
+
+    try {
+      const result = await issueCertificates(templateId, bulkRows, editableFields, selectedTemplate, true);
+      
+      if (result.success) {
+        setIssuanceResult(result);
+        setShowDuplicateDialog(false);
+        alert(`Successfully issued ${result.issuedCount} new certificates and updated ${result.duplicateCount} existing certificates. You can check your issued certificates in "Certificates" Page.`);
+      } else {
+        alert(`Error: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error updating certificates:', error);
+      alert('Error updating certificates. Please try again.');
+    }
+  };
+
+  const handleSkipDuplicates = () => {
+    setShowDuplicateDialog(false);
+    if (issuanceResult) {
+      alert(`Successfully issued ${issuanceResult.issuedCount} certificates. ${issuanceResult.duplicateCount} duplicates were skipped. You can check your issued certificates in "Certificates" Page.`);
+    }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
@@ -107,18 +178,84 @@ export const BulkGenerationModal: React.FC<BulkGenerationModalProps> = ({
                 borderRadius: 1,
                 overflow: 'auto'
               }}>
-{`Name    Date        Certificate ID
-Victor    2024-01-15  CERT001
-Zephyr    2024-01-16  CERT002`}
+{`Name    Date        Certificate ID    Recipient Email
+Victor    2024-01-15  CERT001           victor@example.com
+Zephyr    2024-01-16  CERT002           zephyr@example.com`}
               </Box>
               <Typography variant="body2" sx={{ mt: 1 }}>
                 <strong>Important:</strong> The first row must contain headers that exactly match your certificate field labels: {editableFields.map(f => f.label).join(', ')}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                <strong>Optional:</strong> You can include "Recipient Email" column for certificate issuance mode. If not provided, you can fill it in manually later.
               </Typography>
             </Alert>
           </Collapse>
         </Box>
 
-        {/* Error Message */}
+        {/* Certificate Issue Mode Toggle */}
+        <Box sx={{ 
+          mb: 2, 
+          p: 2, 
+          border: '1px solid #e0e0e0', 
+          borderRadius: 1, 
+          backgroundColor: isVerifiedOrganization ? '#fafafa' : '#f5f5f5',
+          opacity: isVerifiedOrganization ? 1 : 0.7
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            {isVerifiedOrganization ? (
+              <VerifiedIcon color="success" />
+            ) : (
+              <VerifiedIcon color="disabled" />
+            )}
+            <Typography 
+              variant="subtitle2" 
+              color={isVerifiedOrganization ? "success.main" : "text.disabled"}
+            >
+              {isVerifiedOrganization ? "Verified Organization" : "Organization Required"}
+            </Typography>
+          </Box>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={issueMode}
+                onChange={(e) => setIssueMode(e.target.checked)}
+                color="success"
+                disabled={!isVerifiedOrganization}
+              />
+            }
+            label={
+              <Box>
+                <Typography 
+                  variant="body2" 
+                  fontWeight="medium"
+                  color={isVerifiedOrganization ? "text.primary" : "text.disabled"}
+                >
+                  Certificate Issue Mode
+                </Typography>
+                <Typography 
+                  variant="caption" 
+                  color={isVerifiedOrganization ? "text.secondary" : "text.disabled"}
+                >
+                  {isVerifiedOrganization 
+                    ? "Issue certificates directly to the database instead of generating PDF files. This feature is only available for verified organizations."
+                    : "Upgrade to a verified organization to issue certificates directly to the database and manage them online."
+                  }
+                </Typography>
+                {!isVerifiedOrganization && (
+                  <Typography 
+                    variant="caption" 
+                    color="primary.main" 
+                    sx={{ display: 'block', mt: 0.5, fontWeight: 'medium' }}
+                  >
+                    💡 Register as an organization to unlock this powerful feature!
+                  </Typography>
+                )}
+              </Box>
+            }
+          />
+        </Box>
+
+        {/* Error Messages */}
         <Collapse in={showError}>
           <Alert 
             severity="error" 
@@ -126,6 +263,16 @@ Zephyr    2024-01-16  CERT002`}
             onClose={onClearError}
           >
             {errorMessage}
+          </Alert>
+        </Collapse>
+
+        <Collapse in={!!issuanceError}>
+          <Alert 
+            severity="error" 
+            sx={{ mb: 2 }}
+            onClose={clearError}
+          >
+            {issuanceError}
           </Alert>
         </Collapse>
 
@@ -203,6 +350,24 @@ Zephyr    2024-01-16  CERT002`}
         <Table>
           <TableHead>
             <TableRow>
+              {issueMode && (
+                <TableCell>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography 
+                      variant="subtitle2"
+                      color={isVerifiedOrganization ? "text.primary" : "text.disabled"}
+                    >
+                      Recipient Email
+                    </Typography>
+                    <Chip 
+                      label="Required" 
+                      size="small" 
+                      color={isVerifiedOrganization ? "error" : "default"} 
+                      variant="outlined" 
+                    />
+                  </Box>
+                </TableCell>
+              )}
               {editableFields.map(field => (
                 <TableCell key={field.id}>{field.label}</TableCell>
               ))}
@@ -212,6 +377,27 @@ Zephyr    2024-01-16  CERT002`}
           <TableBody>
             {bulkRows.map((row, rowIdx) => (
               <TableRow key={row.id}>
+                {issueMode && (
+                  <TableCell>
+                    <TextField
+                      size="small"
+                      type="email"
+                      value={row.recipientEmail || ''}
+                      onChange={e => onBulkCellChange(rowIdx, 'recipientEmail', e.target.value)}
+                      placeholder={isVerifiedOrganization ? "recipient@example.com" : "Organization required"}
+                      required
+                      disabled={!isVerifiedOrganization}
+                      error={isVerifiedOrganization && (!row.recipientEmail || row.recipientEmail.trim() === '')}
+                      helperText={
+                        !isVerifiedOrganization 
+                          ? "Register as organization to enable" 
+                          : (!row.recipientEmail || row.recipientEmail.trim() === '') 
+                            ? 'Email is required' 
+                            : ''
+                      }
+                    />
+                  </TableCell>
+                )}
                 {editableFields.map(field => (
                   <TableCell key={field.id}>
                     <TextField
@@ -219,6 +405,8 @@ Zephyr    2024-01-16  CERT002`}
                       value={row[field.id] || ''}
                       onChange={e => onBulkCellChange(rowIdx, field.id, e.target.value)}
                       placeholder={field.label}
+                      required={issueMode && isVerifiedOrganization}
+                      error={issueMode && isVerifiedOrganization && (!row[field.id] || row[field.id]?.trim() === '')}
                     />
                   </TableCell>
                 ))}
@@ -237,29 +425,90 @@ Zephyr    2024-01-16  CERT002`}
         <Button onClick={onBulkAddRow} sx={{ mt: 2 }}>Add Row</Button>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={exporting}>Close</Button>
-        <Button 
-          variant="contained" 
-          color="primary" 
-          onClick={onBulkExportPDF} 
-          disabled={!canExport}
-        >
-          {exporting ? 'Exporting...' : 'Bulk Export PDF (ZIP)'}
-        </Button>
+        <Button onClick={onClose} disabled={exporting || issuing}>Close</Button>
+        {issueMode ? (
+          <Button 
+            variant="contained" 
+            color="success" 
+            onClick={handleIssueCertificates} 
+            disabled={!canExport || !isVerifiedOrganization}
+            startIcon={<VerifiedIcon />}
+            title={!isVerifiedOrganization ? "Organization verification required to issue certificates" : ""}
+          >
+            {issuing ? 'Issuing Certificates...' : 'Issue Certificates'}
+          </Button>
+        ) : (
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={onBulkExportPDF} 
+            disabled={!canExport}
+          >
+            {exporting ? 'Exporting...' : 'Bulk Export PDF (ZIP)'}
+          </Button>
+        )}
       </DialogActions>
-      {exporting && (
+      {(exporting || issuing) && (
         <div className="w-full px-8 pb-4">
           <div className="w-full bg-gray-200 rounded-full h-3 mt-2">
             <div 
-              className="bg-blue-600 h-3 rounded-full transition-all" 
-              style={{ width: `${exportProgress}%` }}
+              className={`h-3 rounded-full transition-all ${
+                issueMode ? 'bg-green-600' : 'bg-blue-600'
+              }`}
+              style={{ width: `${exporting ? exportProgress : progress}%` }}
             />
           </div>
           <div className="text-center text-sm text-gray-600 mt-1">
-            {exportProgress}%
+            {exporting ? exportProgress : progress}%
           </div>
         </div>
       )}
+
+      {/* Duplicate Certificates Dialog */}
+      <Dialog open={showDuplicateDialog} onClose={() => setShowDuplicateDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Duplicate Certificates Detected
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              We detected that some certificates have already been issued for the same recipients and content. 
+              Please choose how to handle these duplicates:
+            </Typography>
+          </Alert>
+          
+          <Typography variant="subtitle2" sx={{ mb: 2 }}>
+            Duplicate certificates ({duplicates.length}):
+          </Typography>
+          
+          <Box sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid #e0e0e0', borderRadius: 1, p: 2 }}>
+            {duplicates.map((duplicate, index) => (
+              <Box key={index} sx={{ mb: 2, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
+                <Typography variant="body2" fontWeight="medium">
+                  Recipient: {duplicate.recipientEmail}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Certificate Key: {duplicate.existingCertificateKey}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+          
+          <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
+            <strong>Update:</strong> Replace existing certificates with new data and regenerate PDFs.<br/>
+            <strong>Skip:</strong> Keep existing certificates unchanged.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowDuplicateDialog(false)}>Cancel</Button>
+          <Button onClick={handleSkipDuplicates} variant="outlined">
+            Skip Duplicates
+          </Button>
+          <Button onClick={handleUpdateDuplicates} variant="contained" color="success">
+            Update Duplicates
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };
