@@ -22,6 +22,7 @@ const CertificatePreview = forwardRef(function CertificatePreview({
   const [imgSize, setImgSize] = useState({ width: 600, height: 320 });
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [isImgLoaded, setIsImgLoaded] = useState(false);
+  const [lastThumbnail, setLastThumbnail] = useState<string>('');
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const certificateRef = useRef<HTMLDivElement>(null);
@@ -47,9 +48,14 @@ const CertificatePreview = forwardRef(function CertificatePreview({
   };
 
   useEffect(() => {
-    setImgSize({ width: 600, height: 320 });
-    setIsImgLoaded(false);
-  }, [template.thumbnail]);
+    // Only reset if thumbnail actually changed
+    if (lastThumbnail !== template.thumbnail) {
+      setImgSize({ width: 600, height: 320 });
+      setIsImgLoaded(false);
+      setDraggingId(null);
+      setLastThumbnail(template.thumbnail);
+    }
+  }, [template.thumbnail, lastThumbnail]);
 
   const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -265,40 +271,40 @@ const CertificatePreview = forwardRef(function CertificatePreview({
           // Vertical centering
           const renderY = anchorY - (textHeight * scale) / 2;
           
-                      return (
-              <Draggable
-                key={field.id}
-                position={{ x: renderX, y: renderY }}
-                onStart={() => setDraggingId(field.id)}
-                onStop={(_, data) => {
-                  setDraggingId(null);
-                  // The data.x and data.y are the new render positions
-                  // We need to convert them back to anchor point positions
-                  let newAnchorX = data.x;
-                  let newAnchorY = data.y;
-                  
-                  // Recalculate text dimensions to ensure accuracy
-                  const { width: currentTextWidth, height: currentTextHeight } = calculateTextDimensions(
-                    hasValue ? field.value : '[Empty]',
-                    fontSize / scale,
-                    field.fontFamily
-                  );
-                  
-                  // Add back the offset based on text alignment (scale the text dimensions)
-                  if (textAlign === 'center') {
-                    newAnchorX += (currentTextWidth * scale) / 2;
-                  } else if (textAlign === 'right') {
-                    newAnchorX += currentTextWidth * scale;
-                  }
-                  
-                  // Add back the vertical offset (scale the text dimensions)
-                  newAnchorY += (currentTextHeight * scale) / 2;
-                  
-                  handleDragStop(field.id, newAnchorX, newAnchorY);
-                }}
-                bounds="parent"
-                nodeRef={nodeRefs.current[field.id]}
-              >
+          return (
+            <Draggable
+              key={field.id}
+              position={{ x: renderX, y: renderY }}
+              onStart={() => setDraggingId(field.id)}
+              onStop={(_, data) => {
+                setDraggingId(null);
+                // The data.x and data.y are the new render positions
+                // We need to convert them back to anchor point positions
+                let newAnchorX = data.x;
+                let newAnchorY = data.y;
+                
+                // Recalculate text dimensions to ensure accuracy
+                const { width: currentTextWidth, height: currentTextHeight } = calculateTextDimensions(
+                  hasValue ? field.value : '[Empty]',
+                  fontSize / scale,
+                  field.fontFamily
+                );
+                
+                // Add back the offset based on text alignment (scale the text dimensions)
+                if (textAlign === 'center') {
+                  newAnchorX += (currentTextWidth * scale) / 2;
+                } else if (textAlign === 'right') {
+                  newAnchorX += currentTextWidth * scale;
+                }
+                
+                // Add back the vertical offset (scale the text dimensions)
+                newAnchorY += (currentTextHeight * scale) / 2;
+                
+                handleDragStop(field.id, newAnchorX, newAnchorY);
+              }}
+              bounds="parent"
+              nodeRef={nodeRefs.current[field.id]}
+            >
                 <div
                   ref={nodeRefs.current[field.id]}
                   data-field-id={field.id}

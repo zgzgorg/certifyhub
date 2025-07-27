@@ -11,7 +11,9 @@ const nextConfig: NextConfig = {
   // Enable experimental features for better performance
   experimental: {
     // optimizeCss: true, // Disabled due to critters module issue
-  }
+  },
+  // Disable font optimization to avoid preload warnings
+  optimizeFonts: false,
 };
 
 export default nextConfig;

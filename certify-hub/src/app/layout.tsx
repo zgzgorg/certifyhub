@@ -7,11 +7,15 @@ import NavigationBar from '../components/NavigationBar';
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  preload: false, // Disable preload to avoid warnings
+  display: 'swap',
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false, // Disable preload to avoid warnings
+  display: 'swap',
 });
 
 export const metadata: Metadata = {

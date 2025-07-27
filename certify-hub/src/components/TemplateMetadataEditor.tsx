@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import CertificatePreview from "@/components/CertificatePreview";
 import { FieldEditor } from "@/components/FieldEditor";
-import { Template, TemplateMetadata } from '@/types/template';
+import { Template, TemplateMetadata, TemplateFieldMetadata } from '@/types/template';
 import { CertificateField, CertificatePreviewRef } from '@/types/certificate';
 import { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT } from "@/config/certificate";
+import { supabase } from '@/lib/supabaseClient';
 
 interface TemplateMetadataEditorProps {
   template: Template;
@@ -23,26 +24,119 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
   onCancel,
   isEditing = false
 }) => {
-  const [name, setName] = useState(metadata?.name || 'V0');
+  const [name, setName] = useState('V0');
   const [isDefault, setIsDefault] = useState(true);
   const [newFieldLabel, setNewFieldLabel] = useState("");
   const [showCustomizeDetails, setShowCustomizeDetails] = useState(false);
-  const [fields, setFields] = useState<CertificateField[]>(
-    metadata?.metadata.map(f => ({
-      id: f.id,
-      label: f.label,
-      value: '',
-      position: f.position,
-      required: f.required,
-      showInPreview: f.showInPreview,
-      fontSize: f.fontSize,
-      fontFamily: f.fontFamily,
-      color: f.color,
-      textAlign: f.textAlign,
-    })) || []
-  );
+  const [fields, setFields] = useState<CertificateField[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [existingMetadata, setExistingMetadata] = useState<TemplateMetadata | null>(null);
+  const [previewKey, setPreviewKey] = useState(0);
   
   const previewRef = useRef<CertificatePreviewRef | null>(null);
+
+  // Reset function to clear all state
+  const resetState = useCallback(() => {
+    setName('V0');
+    setIsDefault(true);
+    setFields([]);
+    setExistingMetadata(null);
+    setNewFieldLabel("");
+    setShowCustomizeDetails(false);
+    setLoading(false);
+  }, []);
+
+  // Force reset function that also resets preview
+  const forceResetState = useCallback(() => {
+    resetState();
+    setPreviewKey(prev => prev + 1);
+  }, [resetState]);
+
+  // Load existing metadata when component mounts
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadExistingMetadata = async () => {
+      try {
+        setLoading(true);
+        
+        // Reset state to defaults first
+        if (isMounted) {
+          setName('V0');
+          setIsDefault(true);
+          setFields([]);
+          setExistingMetadata(null);
+          // Don't reset previewKey here, only when explicitly needed
+        }
+        
+        // If metadata prop is provided (for editing), use it
+        if (metadata && isMounted) {
+          setExistingMetadata(metadata);
+          setName(metadata.name);
+          setIsDefault(metadata.is_default);
+          setFields(metadata.metadata.map(f => ({
+            id: f.id,
+            label: f.label,
+            value: '',
+            position: f.position,
+            required: f.required,
+            showInPreview: f.showInPreview,
+            fontFamily: f.fontFamily,
+            fontSize: f.fontSize,
+            color: f.color,
+            textAlign: f.textAlign,
+          })));
+          setLoading(false);
+          return;
+        }
+
+        // Otherwise, query for default metadata
+        const { data, error } = await supabase
+          .from('template_metadata')
+          .select('*')
+          .eq('template_id', template.id)
+          .eq('user_id', template.user_id)
+          .eq('is_default', true)
+          .single();
+
+        if (!isMounted) return;
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching default metadata:', error);
+        } else if (data) {
+          setExistingMetadata(data);
+          setName(data.name);
+          setIsDefault(data.is_default);
+          setFields(data.metadata.map((f: TemplateFieldMetadata) => ({
+            id: f.id,
+            label: f.label,
+            value: '',
+            position: f.position,
+            required: f.required,
+            showInPreview: f.showInPreview,
+            fontFamily: f.fontFamily,
+            fontSize: f.fontSize,
+            color: f.color,
+            textAlign: f.textAlign,
+          })));
+        }
+        // If no data found, keep default values (V0, empty fields, etc.)
+      } catch (error) {
+        console.error('Error loading metadata:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadExistingMetadata();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [template.id, template.user_id, metadata]);
 
   // Field management handlers
   const handleFieldChange = (id: string, value: string) => {
@@ -130,6 +224,11 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
     setFields(fields => fields.map(f => f.id === id ? { ...f, position: { x, y } } : f));
   };
 
+  const handleCancel = useCallback(() => {
+    forceResetState();
+    onCancel();
+  }, [forceResetState, onCancel]);
+
   const handleSave = () => {
     if (!name.trim()) {
       alert('Please enter a name for the metadata');
@@ -137,7 +236,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
     }
 
     const templateMetadata: TemplateMetadata = {
-      id: metadata?.id || '',
+      id: existingMetadata?.id || '',
       template_id: template.id,
       name: name.trim(),
       is_default: isDefault,
@@ -147,17 +246,18 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
         label: f.label,
         position: f.position,
         required: f.required,
-        showInPreview: f.showInPreview || true,
+        showInPreview: f.showInPreview ?? true,
         fontSize: f.fontSize || 20,
         fontFamily: f.fontFamily || 'serif',
         color: f.color || '#1a237e',
         textAlign: f.textAlign || 'center',
       })),
-      created_at: metadata?.created_at || new Date().toISOString(),
+      created_at: existingMetadata?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
     onSave(templateMetadata);
+    forceResetState();
   };
 
   return (
@@ -170,24 +270,36 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
           </h2>
           <div className="flex gap-3">
             <button
-              onClick={onCancel}
+              onClick={handleCancel}
               className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+              disabled={loading}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Save
             </button>
           </div>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center p-8">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="text-gray-600">Loading metadata...</span>
+            </div>
+          </div>
+        )}
+
         {/* Content */}
-        <div className="flex-1 overflow-hidden flex">
-          {/* Left: Metadata Form and Field Editor */}
-          <div className="w-1/2 p-6 overflow-y-auto border-r">
+        {!loading && (
+          <div className="flex-1 overflow-hidden flex">
+            {/* Left: Metadata Form and Field Editor */}
+            <div className="w-1/2 p-6 overflow-y-auto border-r">
             {/* Instructions */}
             <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <h3 className="text-sm font-semibold text-blue-800 mb-2">What is Template Metadata?</h3>
@@ -250,9 +362,21 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
 
           {/* Right: Preview */}
           <div className="w-1/2 p-6 overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Preview</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Preview</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">If preview doesn't display correctly, please refresh</span>
+                <button
+                  onClick={() => setPreviewKey(prev => prev + 1)}
+                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded border"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
             <div className="flex justify-center">
               <CertificatePreview
+                key={`${template.id}-${previewKey}`}
                 ref={previewRef}
                 template={{
                   id: template.id,
@@ -268,6 +392,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

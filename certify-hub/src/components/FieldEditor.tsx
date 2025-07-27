@@ -90,7 +90,7 @@ export const FieldEditor: React.FC<FieldEditorProps> = ({
               <label className="flex items-center gap-1 text-xs">
                 <input
                   type="checkbox"
-                  checked={field.showInPreview}
+                  checked={field.showInPreview ?? true}
                   onChange={e => onFieldShowToggle(field.id, e.target.checked)}
                 />
                 Show

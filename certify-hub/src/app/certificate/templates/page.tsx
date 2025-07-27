@@ -117,7 +117,7 @@ export default function TemplatesPage() {
   const handleMetadataSaved = useCallback(async (metadata: TemplateMetadata) => {
     if (!selectedTemplate) return;
     try {
-      if (editingMetadata) {
+      if (metadata.id) {
         // Update existing metadata
         const { error } = await supabase
           .from('template_metadata')
@@ -151,7 +151,7 @@ export default function TemplatesPage() {
       console.error('Error saving metadata:', error);
       alert('Failed to save metadata');
     }
-  }, [selectedTemplate, editingMetadata, user?.id]);
+  }, [selectedTemplate, user?.id]);
 
   const handleMetadataCancel = useCallback(() => {
     setIsMetadataEditorOpen(false);
