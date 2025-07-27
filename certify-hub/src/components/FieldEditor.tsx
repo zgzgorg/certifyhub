@@ -16,6 +16,8 @@ interface FieldEditorProps {
   onFieldDelete: (id: string) => void;
   onFieldAdd: () => void;
   defaultShowDetails?: boolean;
+  showDetails?: boolean;
+  onShowDetailsChange?: (show: boolean) => void;
 }
 
 export const FieldEditor: React.FC<FieldEditorProps> = ({
@@ -32,8 +34,14 @@ export const FieldEditor: React.FC<FieldEditorProps> = ({
   onFieldDelete,
   onFieldAdd,
   defaultShowDetails = false,
+  showDetails: externalShowDetails,
+  onShowDetailsChange,
 }) => {
-  const [showDetails, setShowDetails] = useState(defaultShowDetails);
+  const [internalShowDetails, setInternalShowDetails] = useState(defaultShowDetails);
+  
+  // Use external state if provided, otherwise use internal state
+  const showDetails = externalShowDetails !== undefined ? externalShowDetails : internalShowDetails;
+  const setShowDetails = onShowDetailsChange || setInternalShowDetails;
 
   return (
     <div className="mt-6">
@@ -145,9 +153,9 @@ export const FieldEditor: React.FC<FieldEditorProps> = ({
                 </div>
               </>
             ) : (
-              // Simple view - only field label and sample value
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              // Simple view - field label, visible toggle, and sample value
+              <div className="grid grid-cols-6 gap-3">
+                <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">Field Label</label>
                   <input
                     type="text"
@@ -159,6 +167,19 @@ export const FieldEditor: React.FC<FieldEditorProps> = ({
                   />
                 </div>
                 <div>
+                  <label className="block text-xs text-gray-500 mb-1">Visible</label>
+                  <div className="flex items-center h-8">
+                    <label className="flex items-center gap-1 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={field.showInPreview ?? true}
+                        onChange={e => onFieldShowToggle(field.id, e.target.checked)}
+                        className="w-3 h-3"
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div className="col-span-3">
                   <label className="block text-xs text-gray-500 mb-1">Sample Value (for preview only)</label>
                   <input
                     type="text"

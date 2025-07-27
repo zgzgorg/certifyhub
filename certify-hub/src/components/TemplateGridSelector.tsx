@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Template } from '@/types/template';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -9,6 +9,7 @@ interface TemplateGridSelectorProps {
   onTemplateUpload: (file: File) => boolean;
   onTemplateDelete: (templateId: string) => void;
   loading?: boolean;
+  onTemplatesUpdate?: (templates: Template[]) => void;
 }
 
 export const TemplateGridSelector: React.FC<TemplateGridSelectorProps> = ({
@@ -18,6 +19,7 @@ export const TemplateGridSelector: React.FC<TemplateGridSelectorProps> = ({
   onTemplateUpload,
   onTemplateDelete,
   loading = false,
+  onTemplatesUpdate,
 }) => {
   const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +36,11 @@ export const TemplateGridSelector: React.FC<TemplateGridSelectorProps> = ({
     const success = onTemplateUpload(file);
     if (!success) {
       alert("Only SVG, PNG, or JPEG images are supported.");
+    }
+    
+    // Clear the input
+    if (inputRef.current) {
+      inputRef.current.value = '';
     }
   };
 
@@ -67,7 +74,7 @@ export const TemplateGridSelector: React.FC<TemplateGridSelectorProps> = ({
           <button
             type="button"
             onClick={handleUploadClick}
-            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
           >
             Use Local Template
           </button>
@@ -94,7 +101,7 @@ export const TemplateGridSelector: React.FC<TemplateGridSelectorProps> = ({
         <button
           type="button"
           onClick={handleUploadClick}
-          className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
         >
           Use Local Template
         </button>
@@ -158,8 +165,8 @@ export const TemplateGridSelector: React.FC<TemplateGridSelectorProps> = ({
               </div>
             </button>
             
-            {/* Delete button for user's own templates */}
-            {user?.id === template.user_id && (
+            {/* Delete button for local templates only */}
+            {template.id.startsWith('local_') && (
               <button
                 className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow hover:bg-red-100 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
                 title="Delete template"

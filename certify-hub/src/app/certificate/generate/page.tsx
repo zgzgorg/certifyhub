@@ -12,6 +12,7 @@ import { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT } from "@/config/certificate";
 import { getNewFieldPosition } from "@/utils/template";
 import { CertificatePreviewRef } from "@/types/certificate";
 import { CertificateField } from "@/types/certificate";
+import { Template } from "@/types/template";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -21,6 +22,8 @@ export default function CertificateGeneratePage() {
   const previewRef = useRef<CertificatePreviewRef | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [templateFields, setTemplateFields] = useState<Record<string, CertificateField[]>>({});
+  const [showAdjustDetails, setShowAdjustDetails] = useState(false);
+  const [localTemplates, setLocalTemplates] = useState<Template[]>([]);
 
   // Database templates
   const {
@@ -49,7 +52,8 @@ export default function CertificateGeneratePage() {
   } = useBulkGeneration();
 
   const selectedTemplateObj = selectedTemplate 
-    ? templates.find(tpl => tpl.id === selectedTemplate) || null 
+    ? templates.find(tpl => tpl.id === selectedTemplate) || 
+      localTemplates.find(tpl => tpl.id === selectedTemplate) || null 
     : null;
 
   const fields = templateFields[selectedTemplate || ''] || [];
@@ -225,13 +229,70 @@ export default function CertificateGeneratePage() {
     }
   };
 
-  const handleTemplateUpload = (): boolean => {
-    // For now, just return false - template upload should be handled in the templates page
-    alert("Please upload templates from the Templates page first.");
-    return false;
+  const handleTemplateUpload = (file: File): boolean => {
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert("Only image files (PNG, JPEG, SVG) are supported.");
+      return false;
+    }
+
+    // Create a local template object
+    const localTemplateId = `local_${Date.now()}`;
+    const localTemplate: Template = {
+      id: localTemplateId,
+      name: file.name,
+      description: 'Local template',
+      file_url: URL.createObjectURL(file),
+      file_name: file.name,
+      file_size: file.size,
+      file_type: file.type,
+      is_public: false,
+      user_id: user?.id || 'local',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Add to local templates list
+    setLocalTemplates(prev => [...prev, localTemplate]);
+    
+    // Select the local template
+    setSelectedTemplate(localTemplateId);
+    
+    // Initialize empty fields for the local template
+    setTemplateFields(prev => ({
+      ...prev,
+      [localTemplateId]: []
+    }));
+    
+    // Show adjust details for local template
+    setShowAdjustDetails(true);
+    
+    return true;
   };
 
   const handleTemplateDelete = async (templateId: string) => {
+    // Check if it's a local template
+    const isLocalTemplate = templateId.startsWith('local_');
+    
+    if (isLocalTemplate) {
+      // Delete local template
+      setLocalTemplates(prev => prev.filter(t => t.id !== templateId));
+      
+      // Clean up stored fields for this template
+      setTemplateFields(prev => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [templateId]: removed, ...rest } = prev;
+        return rest;
+      });
+      
+      if (selectedTemplate === templateId) {
+        setSelectedTemplate(null);
+      }
+      
+      return;
+    }
+    
+    // Delete database template
     if (!user) return;
     
     try {
@@ -375,15 +436,17 @@ export default function CertificateGeneratePage() {
       <div className="w-full max-w-7xl flex flex-col md:flex-row gap-8 items-start justify-center px-2 md:px-8">
         {/* Left: Field Management */}
         <div className="flex-1 min-w-[320px] max-w-md space-y-6 bg-white rounded-xl shadow p-6">
-          <h2 className="text-2xl font-bold mb-4">Generate Certificate</h2>
           
           <TemplateGridSelector
-            templates={templates}
+            templates={[...templates, ...localTemplates]}
             selectedTemplate={selectedTemplate}
             onTemplateSelect={handleTemplateSelect}
             onTemplateUpload={handleTemplateUpload}
             onTemplateDelete={handleTemplateDelete}
             loading={templatesLoading}
+            onTemplatesUpdate={(updatedTemplates) => {
+              // This will be handled by the useDatabaseTemplates hook
+            }}
           />
           
           <FieldEditor
@@ -400,6 +463,8 @@ export default function CertificateGeneratePage() {
             onFieldDelete={handleDeleteField}
             onFieldAdd={handleAddField}
             defaultShowDetails={false}
+            showDetails={showAdjustDetails}
+            onShowDetailsChange={setShowAdjustDetails}
           />
         </div>
         {/* Right: Preview Area */}
