@@ -1,11 +1,21 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
 import { UI_TEXT } from '@/constants/messages';
 
 export default function NavigationBar() {
   const { user, organization, regularUser, signOut } = useAuth();
+  const pathname = usePathname();
+
+  // 检查当前页面是否匹配
+  const isActive = (path: string) => {
+    if (path === '/') {
+      return pathname === '/';
+    }
+    return pathname.startsWith(path);
+  };
 
   return (
     <nav className="w-full bg-white shadow fixed top-0 left-0 z-50">
@@ -14,14 +24,35 @@ export default function NavigationBar() {
           <Link href="/" className="text-xl font-bold text-blue-700 hover:text-blue-900">
             {UI_TEXT.NAVIGATION.CERTIFY_HUB}
           </Link>
-          <Link href="/certificate/generate" className="text-gray-700 hover:text-blue-700 font-medium">
-            {UI_TEXT.NAVIGATION.GENERATE_CERTIFICATE}
+          <Link 
+            href="/certificate/generate" 
+            className={`font-medium transition-colors ${
+              isActive('/certificate/generate') 
+                ? 'text-blue-700 border-b-2 border-blue-700' 
+                : 'text-gray-700 hover:text-blue-700'
+            }`}
+          >
+            Generate
           </Link>
-          <Link href="/certificate/templates" className="text-gray-700 hover:text-blue-700 font-medium">
+          <Link 
+            href="/certificate/templates" 
+            className={`font-medium transition-colors ${
+              isActive('/certificate/templates') 
+                ? 'text-blue-700 border-b-2 border-blue-700' 
+                : 'text-gray-700 hover:text-blue-700'
+            }`}
+          >
             Templates
           </Link>
           {organization && organization.status === 'approved' && (
-            <Link href="/certificates" className="text-gray-700 hover:text-blue-700 font-medium">
+            <Link 
+              href="/certificates" 
+              className={`font-medium transition-colors ${
+                isActive('/certificates') 
+                  ? 'text-blue-700 border-b-2 border-blue-700' 
+                  : 'text-gray-700 hover:text-blue-700'
+              }`}
+            >
               Certificates
             </Link>
           )}
@@ -30,7 +61,14 @@ export default function NavigationBar() {
         <div className="flex items-center gap-4">
           {user ? (
             <div className="flex items-center gap-4">
-              <Link href="/dashboard" className="text-gray-700 hover:text-blue-700 font-medium">
+              <Link 
+                href="/dashboard" 
+                className={`font-medium transition-colors ${
+                  isActive('/dashboard') 
+                    ? 'text-blue-700 border-b-2 border-blue-700' 
+                    : 'text-gray-700 hover:text-blue-700'
+                }`}
+              >
                 Dashboard
               </Link>
               {organization && (
