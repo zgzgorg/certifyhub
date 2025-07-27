@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import CertificatePreview from "@/components/CertificatePreview";
 import { FieldEditor } from "@/components/FieldEditor";
+import { PDFGenerateButton } from "@/components/PDFGenerateButton";
 import { Template, TemplateMetadata, TemplateFieldMetadata } from '@/types/template';
 import { CertificateField, CertificatePreviewRef } from '@/types/certificate';
 import { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT } from "@/config/certificate";
@@ -32,6 +33,9 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
   const [loading, setLoading] = useState(true);
   const [existingMetadata, setExistingMetadata] = useState<TemplateMetadata | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
+  const [previewReady, setPreviewReady] = useState(false);
+  const [originalFields, setOriginalFields] = useState<CertificateField[]>([]);
+  const [fieldsModified, setFieldsModified] = useState(false);
   
   const previewRef = useRef<CertificatePreviewRef | null>(null);
 
@@ -44,13 +48,26 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
     setNewFieldLabel("");
     setShowCustomizeDetails(false);
     setLoading(false);
+    setPreviewReady(false);
+    setOriginalFields([]);
+    setFieldsModified(false);
   }, []);
+
+  // Restore original fields
+  const restoreOriginalFields = useCallback(() => {
+    if (fieldsModified && originalFields.length > 0) {
+      setFields(originalFields);
+      setFieldsModified(false);
+    }
+  }, [fieldsModified, originalFields]);
 
   // Force reset function that also resets preview
   const forceResetState = useCallback(() => {
+    // Restore original fields before resetting
+    restoreOriginalFields();
     resetState();
     setPreviewKey(prev => prev + 1);
-  }, [resetState]);
+  }, [restoreOriginalFields, resetState]);
 
   // Load existing metadata when component mounts
   useEffect(() => {
@@ -224,16 +241,55 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
     setFields(fields => fields.map(f => f.id === id ? { ...f, position: { x, y } } : f));
   };
 
+  // Handle field updates from PDF generation
+  const handleFieldsUpdate = useCallback((updatedFields: CertificateField[]) => {
+    if (!fieldsModified) {
+      // First time fields are being modified, store original state
+      setOriginalFields([...fields]);
+      setFieldsModified(true);
+    }
+    setFields(updatedFields);
+  }, [fields, fieldsModified]);
+
+  // Callback to track when preview is ready
+  const handlePreviewReady = useCallback(() => {
+    setPreviewReady(true);
+  }, []);
+
+  // Monitor when preview ref becomes available
+  useEffect(() => {
+    if (previewRef.current) {
+      setPreviewReady(true);
+    } else {
+      setPreviewReady(false);
+    }
+  }, [previewRef.current]);
+
+  // Cleanup effect to restore fields when component unmounts
+  useEffect(() => {
+    return () => {
+      // Restore original fields when component unmounts
+      if (fieldsModified && originalFields.length > 0) {
+        setFields(originalFields);
+      }
+    };
+  }, [fieldsModified, originalFields]);
+
   const handleCancel = useCallback(() => {
+    // Restore original fields before resetting state
+    restoreOriginalFields();
     forceResetState();
     onCancel();
-  }, [forceResetState, onCancel]);
+  }, [restoreOriginalFields, forceResetState, onCancel]);
 
   const handleSave = () => {
     if (!name.trim()) {
       alert('Please enter a name for the metadata');
       return;
     }
+
+    // Restore original fields before saving
+    restoreOriginalFields();
 
     const templateMetadata: TemplateMetadata = {
       id: existingMetadata?.id || '',
@@ -374,7 +430,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
                 </button>
               </div>
             </div>
-            <div className="flex justify-center">
+            <div className="flex justify-center mb-4">
               <CertificatePreview
                 key={`${template.id}-${previewKey}`}
                 ref={previewRef}
@@ -388,6 +444,18 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
                 onFieldPositionChange={handleFieldPositionChange}
                 maxWidth={MAX_PREVIEW_WIDTH}
                 maxHeight={MAX_PREVIEW_HEIGHT}
+              />
+            </div>
+            {/* Generate Sample PDF Button - positioned below preview */}
+            <div className="flex justify-center">
+              <PDFGenerateButton
+                previewRef={previewRef}
+                fields={fields}
+                filename="sample_certificate.pdf"
+                variant="sample"
+                onFieldsUpdate={handleFieldsUpdate}
+                className="px-6 py-3 text-base"
+                disabled={!previewReady}
               />
             </div>
           </div>

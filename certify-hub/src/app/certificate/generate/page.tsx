@@ -4,16 +4,18 @@ import { v4 as uuidv4 } from 'uuid';
 import CertificatePreview from "@/components/CertificatePreview";
 import { TemplateSelector } from "@/components/TemplateSelector";
 import { FieldEditor } from "@/components/FieldEditor";
+import { PDFGenerateButton } from "@/components/PDFGenerateButton";
 import { BulkGenerationModal } from "@/components/BulkGenerationModal";
 import { useCertificateTemplates } from "@/hooks/useCertificateTemplates";
 import { useBulkGeneration } from "@/hooks/useBulkGeneration";
 import { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT } from "@/config/certificate";
 import { getNewFieldPosition } from "@/utils/template";
+import { CertificatePreviewRef } from "@/types/certificate";
 
 
 export default function CertificateGeneratePage() {
   const [newFieldLabel, setNewFieldLabel] = useState("");
-  const previewRef = useRef<{ exportToPDF: (filename?: string, returnBlob?: boolean) => Promise<Blob | void> } | null>(null);
+  const previewRef = useRef<CertificatePreviewRef | null>(null);
 
   // Template management
   const {
@@ -180,16 +182,14 @@ export default function CertificateGeneratePage() {
       </div>
       {/* Bottom: Action Button */}
       <div className="w-full max-w-5xl flex justify-end mt-8 gap-4">
-        <button
-          className="px-6 py-2 rounded-md bg-indigo-500 text-white font-semibold shadow disabled:opacity-50"
-          onClick={async () => {
-            if (previewRef.current?.exportToPDF) {
-              await previewRef.current.exportToPDF('certificate.pdf');
-            }
-          }}
-        >
-          Generate Certificate
-        </button>
+        <PDFGenerateButton
+          previewRef={previewRef}
+          fields={fields}
+          filename="certificate.pdf"
+          variant="primary"
+          className="px-6 py-2"
+          disabled={!selectedTemplateObj}
+        />
         <button
           className="px-6 py-2 rounded-md bg-green-600 text-white font-semibold shadow disabled:opacity-50"
           onClick={() => setBulkOpen(true)}

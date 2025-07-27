@@ -109,22 +109,25 @@ const CertificatePreview = forwardRef(function CertificatePreview({
       const fieldDiv = document.createElement('div');
       fieldDiv.style.position = 'absolute';
       
-      // Calculate text dimensions
+      // Calculate text dimensions - use the same logic as in preview
       const fontSize = field.fontSize || 16;
       const fontFamily = field.fontFamily || 'serif';
       
+      // Use the same text dimensions calculation as in preview
+      // In preview: fontSize / scale, but in PDF we use original coordinates (scale = 1)
       const { width: textWidth, height: textHeight } = calculateTextDimensions(
         field.value, 
-        fontSize, 
+        fontSize, // Use original fontSize since we're in original coordinates
         fontFamily
       );
       
-      // field.position stores the anchor point position
+      // field.position stores the anchor point position (in original coordinates)
       const anchorX = field.position.x;
       const anchorY = field.position.y;
       const textAlign = field.textAlign || 'center';
       
       // Calculate actual render position based on anchor point and text alignment
+      // This should match the preview logic but in original coordinates
       let renderX = anchorX;
       if (textAlign === 'center') {
         renderX = anchorX - textWidth / 2;
@@ -132,8 +135,11 @@ const CertificatePreview = forwardRef(function CertificatePreview({
         renderX = anchorX - textWidth;
       }
       
-      // Adjust vertical position to account for vertical centering
-      const renderY = anchorY - textHeight / 2;
+      // Vertical centering - adjusted for PDF rendering
+      // The text appears to be shifted down in PDF compared to preview
+      // This adjustment compensates for the rendering difference
+      const verticalOffset = 0.75; // Adjust this value if needed: 0.5 = half height, 0.75 = 3/4 height, 1.0 = full height
+      const renderY = anchorY - textHeight * verticalOffset;
       
       fieldDiv.style.left = `${renderX}px`;
       fieldDiv.style.top = `${renderY}px`;
