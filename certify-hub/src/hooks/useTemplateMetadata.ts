@@ -33,6 +33,57 @@ export const useTemplateMetadata = (templateId?: string) => {
     }
   }, [templateId, user?.id]);
 
+  // New function to get public template metadata (no authentication required)
+  const getPublicTemplateMetadata = useCallback(async (templateId: string): Promise<TemplateMetadata | null> => {
+    if (!templateId) return null;
+
+    try {
+      // Get any default metadata for this template (public access)
+      const { data, error } = await supabase
+        .from('template_metadata')
+        .select('*')
+        .eq('template_id', templateId)
+        .eq('is_default', true)
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error('Error fetching public template metadata:', error);
+        return null;
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Error fetching public template metadata:', err);
+      return null;
+    }
+  }, []);
+
+  // New function to get user's default metadata for a template
+  const getUserDefaultMetadata = useCallback(async (templateId: string): Promise<TemplateMetadata | null> => {
+    if (!templateId || !user) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('template_metadata')
+        .select('*')
+        .eq('template_id', templateId)
+        .eq('user_id', user.id)
+        .eq('is_default', true)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user default metadata:', error);
+        return null;
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Error fetching user default metadata:', err);
+      return null;
+    }
+  }, [user?.id]);
+
   const createMetadata = useCallback(async (metadataData: TemplateMetadataCreateData): Promise<TemplateMetadata | null> => {
     if (!user) return null;
 
@@ -153,5 +204,7 @@ export const useTemplateMetadata = (templateId?: string) => {
     updateMetadata,
     deleteMetadata,
     getDefaultMetadata,
+    getPublicTemplateMetadata,
+    getUserDefaultMetadata,
   };
 }; 

@@ -8,6 +8,7 @@ import { PDFGenerateButton } from "@/components/PDFGenerateButton";
 import { BulkGenerationModal } from "@/components/BulkGenerationModal";
 import { useDatabaseTemplates } from "@/hooks/useDatabaseTemplates";
 import { useBulkGeneration } from "@/hooks/useBulkGeneration";
+import { useTemplateMetadata } from "@/hooks/useTemplateMetadata";
 import { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT } from "@/config/certificate";
 import { getNewFieldPosition } from "@/utils/template";
 import { CertificatePreviewRef } from "@/types/certificate";
@@ -31,6 +32,9 @@ export default function CertificateGeneratePage() {
     loading: templatesLoading,
     refetch: refetchTemplates,
   } = useDatabaseTemplates();
+
+  // Template metadata hook
+  const { getPublicTemplateMetadata, getUserDefaultMetadata } = useTemplateMetadata();
 
   // Bulk generation
   const {
@@ -63,68 +67,55 @@ export default function CertificateGeneratePage() {
 
   // Load template metadata and initialize fields
   const loadTemplateMetadata = async (templateId: string) => {
-    if (!user) return;
-
     try {
-      // First try to get user's default metadata for this template
-      const { data: userMetadata, error: userError } = await supabase
-        .from('template_metadata')
-        .select('*')
-        .eq('template_id', templateId)
-        .eq('user_id', user.id)
-        .eq('is_default', true)
-        .single();
-
-             if (userMetadata && !userError) {
-         // Use user's default metadata
-         const metadataFields = userMetadata.metadata.map((field: {
-           id: string;
-           label: string;
-           position: { x: number; y: number };
-           required: boolean;
-           fontSize: number;
-           fontFamily: string;
-           color: string;
-           textAlign: 'left' | 'center' | 'right';
-           showInPreview: boolean;
-         }) => ({
-          id: field.id,
-          label: field.label,
-          value: '',
-          position: field.position,
-          required: field.required,
-          fontSize: field.fontSize,
-          fontFamily: field.fontFamily,
-          color: field.color,
-          textAlign: field.textAlign,
-          showInPreview: field.showInPreview,
-        }));
-        setTemplateFields(prev => ({ ...prev, [templateId]: metadataFields }));
-        return;
+      // First try to get user's default metadata for this template (if logged in)
+      if (user) {
+        const userMetadata = await getUserDefaultMetadata(templateId);
+        if (userMetadata) {
+          // Use user's default metadata
+          const metadataFields = userMetadata.metadata.map((field: {
+            id: string;
+            label: string;
+            position: { x: number; y: number };
+            required: boolean;
+            fontSize: number;
+            fontFamily: string;
+            color: string;
+            textAlign: 'left' | 'center' | 'right';
+            showInPreview: boolean;
+          }) => ({
+            id: field.id,
+            label: field.label,
+            value: '',
+            position: field.position,
+            required: field.required,
+            fontSize: field.fontSize,
+            fontFamily: field.fontFamily,
+            color: field.color,
+            textAlign: field.textAlign,
+            showInPreview: field.showInPreview,
+          }));
+          setTemplateFields(prev => ({ ...prev, [templateId]: metadataFields }));
+          return;
+        }
       }
 
-      // If no user metadata, try to get any metadata for this template
-      const { data: anyMetadata, error: anyError } = await supabase
-        .from('template_metadata')
-        .select('*')
-        .eq('template_id', templateId)
-        .eq('is_default', true)
-        .limit(1)
-        .single();
+      // If no user metadata, try to get any default metadata for this template (public access)
+      const anyMetadata = await getPublicTemplateMetadata(templateId);
 
-             if (anyMetadata && !anyError) {
-         // Use any available default metadata
-         const metadataFields = anyMetadata.metadata.map((field: {
-           id: string;
-           label: string;
-           position: { x: number; y: number };
-           required: boolean;
-           fontSize: number;
-           fontFamily: string;
-           color: string;
-           textAlign: 'left' | 'center' | 'right';
-           showInPreview: boolean;
-         }) => ({
+      if (anyMetadata) {
+        // Use any available default metadata
+        const metadataFields = anyMetadata.metadata.map((field: {
+          id: string;
+          label: string;
+          position: { x: number; y: number };
+          required: boolean;
+          fontSize: number;
+          fontFamily: string;
+          color: string;
+          textAlign: 'left' | 'center' | 'right';
+          showInPreview: boolean;
+        }) => ({
           id: field.id,
           label: field.label,
           value: '',
