@@ -182,8 +182,8 @@ export default function CertificatesPage() {
     }
   }, [selectedTemplateId, organization]);
 
-  const handleViewCertificate = (certificateKey: string) => {
-    window.open(`/verify/${certificateKey}`, '_blank');
+  const handleViewCertificate = (certificateId: string) => {
+    window.open(`/certificates/${certificateId}`, '_blank');
   };
 
   const handleDownloadPDF = (pdfUrl: string) => {
@@ -538,8 +538,8 @@ export default function CertificatesPage() {
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <IconButton
                         size="small"
-                        onClick={() => handleViewCertificate(cert.certificate_key)}
-                        title="View Certificate"
+                        onClick={() => handleViewCertificate(cert.id)}
+                        title="View Certificate Details"
                       >
                         <VisibilityIcon />
                       </IconButton>
