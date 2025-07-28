@@ -12,9 +12,12 @@ interface DebugConfig {
 const parseDebugEnv = (): DebugConfig => {
   // Check if debug mode is explicitly set
   const debugMode = process.env.NEXT_PUBLIC_DEBUG_MODE;
+  const isProduction = process.env.NEXT_PUBLIC_APP_ENV === 'production';
   
-  // Default to development environment if not explicitly set
-  const defaultEnabled = debugMode ? debugMode === 'true' : process.env.NODE_ENV === 'development';
+  // Force disable debug in production unless explicitly overridden
+  const defaultEnabled = isProduction 
+    ? debugMode === 'true' // Only enable if explicitly set to true in production
+    : (debugMode ? debugMode === 'true' : process.env.NODE_ENV === 'development');
   
   return {
     enabled: defaultEnabled,

@@ -1,16 +1,44 @@
 import DOMPurify from 'isomorphic-dompurify';
 
-// Email validation with more robust patterns
+// Production security configuration
+const PRODUCTION_MODE = process.env.NEXT_PUBLIC_APP_ENV === 'production';
+
+// Enhanced email validation with security checks
 export const isValidEmail = (email: string): boolean => {
+  if (typeof email !== 'string' || !email.trim()) return false;
+  
+  // Basic format validation
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  return emailRegex.test(email) && email.length <= 254; // RFC 5321 limit
+  if (!emailRegex.test(email) || email.length > 254) return false;
+  
+  // Security checks for malicious patterns
+  const suspiciousPatterns = [
+    /<script/i,
+    /javascript:/i,
+    /vbscript:/i,
+    /onload|onerror|onclick/i,
+    /\.\./,
+    /[<>'"]/
+  ];
+  
+  return !suspiciousPatterns.some(pattern => pattern.test(email));
 };
 
 // Sanitize HTML content to prevent XSS
 export const sanitizeHtml = (input: string): string => {
+  if (typeof input !== 'string') return '';
+  
+  // Extra strict sanitization for production
   return DOMPurify.sanitize(input, {
     ALLOWED_TAGS: [], // No HTML tags allowed
-    ALLOWED_ATTR: []
+    ALLOWED_ATTR: [],
+    ALLOW_DATA_ATTR: false,
+    ALLOW_UNKNOWN_PROTOCOLS: false,
+    FORBID_TAGS: ['script', 'object', 'embed', 'form', 'input', 'textarea'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+    SANITIZE_DOM: true,
+    SANITIZE_NAMED_PROPS: true,
+    KEEP_CONTENT: false
   });
 };
 
@@ -21,8 +49,31 @@ export const sanitizeText = (input: string): string => {
   return input
     .trim()
     .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove control characters
-    .replace(/[<>]/g, '') // Remove potential HTML
-    .substring(0, 1000); // Limit length
+    .replace(/[<>'"&]/g, '') // Remove potential HTML and XSS chars
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/vbscript:/gi, '') // Remove vbscript: protocol
+    .replace(/data:/gi, '') // Remove data: protocol
+    .replace(/on\w+\s*=/gi, '') // Remove event handlers
+    .substring(0, PRODUCTION_MODE ? 500 : 1000); // Stricter limits in production
+};
+
+// Enhanced path traversal detection
+export const isSecurePath = (path: string): boolean => {
+  if (typeof path !== 'string') return false;
+  
+  const dangerousPatterns = [
+    /\.\./,
+    /\/\.\./,
+    /\.\.\\/,
+    /\/etc\/passwd/,
+    /\/etc\/shadow/,
+    /\/proc\//,
+    /\/sys\//,
+    /\\windows\\system32/i,
+    /\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e\\/i,
+  ];
+  
+  return !dangerousPatterns.some(pattern => pattern.test(path));
 };
 
 // Validate and sanitize certificate metadata
@@ -60,12 +111,12 @@ export const isValidFileType = (
   return allowedTypes.includes(file.type);
 };
 
-// File size limits (in bytes)
+// File size limits (in bytes) - stricter in production
 export const FILE_SIZE_LIMITS = {
-  image: 5 * 1024 * 1024, // 5MB
-  pdf: 10 * 1024 * 1024,  // 10MB
-  csv: 5 * 1024 * 1024,   // 5MB for CSV files
-  document: 10 * 1024 * 1024 // 10MB
+  image: PRODUCTION_MODE ? 2 * 1024 * 1024 : 5 * 1024 * 1024, // 2MB prod, 5MB dev
+  pdf: PRODUCTION_MODE ? 5 * 1024 * 1024 : 10 * 1024 * 1024,  // 5MB prod, 10MB dev
+  csv: PRODUCTION_MODE ? 2 * 1024 * 1024 : 5 * 1024 * 1024,   // 2MB prod, 5MB dev
+  document: PRODUCTION_MODE ? 5 * 1024 * 1024 : 10 * 1024 * 1024 // 5MB prod, 10MB dev
 } as const;
 
 export const isValidFileSize = (
@@ -83,16 +134,24 @@ export const isValidCertificateStatus = (status: string): status is CertificateS
   return VALID_CERTIFICATE_STATUSES.includes(status as CertificateStatus);
 };
 
-// Rate limiting helper
+// Enhanced rate limiting helper with security features
 export class RateLimiter {
   private requests = new Map<string, number[]>();
+  private blockedIPs = new Set<string>();
+  private suspiciousActivity = new Map<string, number>();
   
   constructor(
-    private maxRequests: number = 10,
-    private windowMs: number = 60000 // 1 minute
+    private maxRequests: number = PRODUCTION_MODE ? 5 : 10,
+    private windowMs: number = 60000, // 1 minute
+    private blockThreshold: number = PRODUCTION_MODE ? 3 : 5 // Violations before blocking
   ) {}
   
   isAllowed(identifier: string): boolean {
+    // Check if IP is blocked
+    if (this.blockedIPs.has(identifier)) {
+      return false;
+    }
+    
     const now = Date.now();
     const windowStart = now - this.windowMs;
     
@@ -104,14 +163,36 @@ export class RateLimiter {
     
     // Check if within limit
     if (validRequests.length >= this.maxRequests) {
+      // Track suspicious activity
+      const violations = this.suspiciousActivity.get(identifier) || 0;
+      this.suspiciousActivity.set(identifier, violations + 1);
+      
+      // Block IP if too many violations
+      if (violations + 1 >= this.blockThreshold) {
+        this.blockedIPs.add(identifier);
+        console.warn(`[Security] IP blocked for excessive rate limiting violations: ${identifier}`);
+      }
+      
       return false;
     }
+    
+    // Reset violations on successful request
+    this.suspiciousActivity.delete(identifier);
     
     // Add current request
     validRequests.push(now);
     this.requests.set(identifier, validRequests);
     
     return true;
+  }
+  
+  isBlocked(identifier: string): boolean {
+    return this.blockedIPs.has(identifier);
+  }
+  
+  unblock(identifier: string): void {
+    this.blockedIPs.delete(identifier);
+    this.suspiciousActivity.delete(identifier);
   }
   
   cleanup(): void {
@@ -129,9 +210,18 @@ export class RateLimiter {
   }
 }
 
-// Create global rate limiter instances
-export const authRateLimiter = new RateLimiter(5, 60000); // 5 auth attempts per minute
-export const apiRateLimiter = new RateLimiter(30, 60000); // 30 API calls per minute
+// Create global rate limiter instances with production security
+export const authRateLimiter = new RateLimiter(
+  PRODUCTION_MODE ? 3 : 5, // 3 auth attempts per minute in prod
+  60000, // 1 minute window
+  PRODUCTION_MODE ? 2 : 3 // Block after 2 violations in prod
+);
+
+export const apiRateLimiter = new RateLimiter(
+  PRODUCTION_MODE ? 20 : 30, // 20 API calls per minute in prod
+  60000, // 1 minute window
+  PRODUCTION_MODE ? 3 : 5 // Block after 3 violations in prod
+);
 
 // Cleanup rate limiters periodically
 if (typeof window !== 'undefined') {
