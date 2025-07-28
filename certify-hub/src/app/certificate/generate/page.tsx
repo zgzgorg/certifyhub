@@ -221,9 +221,10 @@ export default function CertificateGeneratePage() {
   };
 
   const handleTemplateUpload = (file: File): boolean => {
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      alert("Only image files (PNG, JPEG, SVG) are supported.");
+    // Check file type - only allow images
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Only image files (PNG, JPEG, GIF, WebP) are supported. PDF files are not supported.");
       return false;
     }
 

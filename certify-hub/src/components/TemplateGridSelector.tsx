@@ -35,7 +35,7 @@ export const TemplateGridSelector: React.FC<TemplateGridSelectorProps> = ({
 
     const success = onTemplateUpload(file);
     if (!success) {
-      alert("Only SVG, PNG, or JPEG images are supported.");
+      alert("Only image files (PNG, JPEG, GIF, WebP) are supported. PDF files are not supported.");
     }
     
     // Clear the input

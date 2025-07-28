@@ -31,10 +31,10 @@ export default function TemplateUploadModal({ isOpen, onClose, onUploaded }: Tem
         return;
       }
       
-      // Check file type
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      // Check file type - only allow images
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
-        setError('Please select a valid file type (JPEG, PNG, GIF, PDF, DOC, DOCX)');
+        setError('Please select a valid image file (JPEG, PNG, GIF, WebP). PDF files are not supported.');
         return;
       }
       
@@ -194,12 +194,12 @@ export default function TemplateUploadModal({ isOpen, onClose, onUploaded }: Tem
               ref={fileInputRef}
               type="file"
               onChange={handleFileSelect}
-              accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx"
+              accept=".jpg,.jpeg,.png,.gif,.webp"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
             <p className="text-xs text-gray-500 mt-1">
-              Supported formats: JPEG, PNG, GIF, PDF, DOC, DOCX (max 10MB)
+              Supported formats: JPEG, PNG, GIF, WebP (max 10MB)
             </p>
           </div>
 
