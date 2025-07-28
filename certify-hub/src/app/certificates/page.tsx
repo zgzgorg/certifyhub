@@ -26,7 +26,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Checkbox
 } from '@mui/material';
 import { 
   Visibility as VisibilityIcon,
@@ -34,12 +35,16 @@ import {
   Verified as VerifiedIcon,
   FilterList as FilterListIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Email as EmailIcon
 } from '@mui/icons-material';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCertificates } from '@/hooks/useCertificates';
 import { useTemplates } from '@/hooks/useTemplates';
 import type { Certificate } from '@/types/certificate';
+import { useEmailNotifications } from '@/hooks/useEmailNotifications';
+import Snackbar from '@mui/material/Snackbar';
+import MuiAlert from '@mui/material/Alert';
 
 export default function CertificatesPage() {
   const { organization } = useAuth();
@@ -54,6 +59,10 @@ export default function CertificatesPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [snackbar, setSnackbar] = useState<{open: boolean, message: string, severity: 'success'|'error'|'warning'}>({open: false, message: '', severity: 'success'});
+  const { sendSingleEmail, sendBulkEmails } = useEmailNotifications();
+  const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(new Set());
+  const [isBulkSending, setIsBulkSending] = useState(false);
 
   // Use custom hooks for data management
   const {
@@ -194,6 +203,104 @@ export default function CertificatesPage() {
     }
   };
 
+  // 单发邮件逻辑
+  const handleSendSingleEmail = async (certificate: Certificate) => {
+    const templateName = selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.name || 'Unknown Template' : 'All Templates';
+    const organizationName = organization?.name || 'Unknown Organization';
+    const verificationBaseUrl = typeof window !== 'undefined' ? `${window.location.origin}/verify` : '';
+    const result = await sendSingleEmail(certificate, templateName, organizationName, verificationBaseUrl);
+    
+    if (result.success) {
+      setSnackbar({
+        open: true,
+        message: `Email sent successfully to ${result.email}`,
+        severity: 'success'
+      });
+    } else {
+      setSnackbar({
+        open: true,
+        message: `Failed to send email to ${result.email}: ${result.message}`,
+        severity: 'error'
+      });
+    }
+  };
+
+  // 批量邮件发送逻辑
+  const handleBulkEmailSend = async () => {
+    if (selectedForBulk.size === 0) return;
+
+    setIsBulkSending(true);
+    const selectedCerts = certificates.filter(cert => selectedForBulk.has(cert.id));
+    const templateName = selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.name || 'Unknown Template' : 'All Templates';
+    const organizationName = organization?.name || 'Unknown Organization';
+    const verificationBaseUrl = typeof window !== 'undefined' ? `${window.location.origin}/verify` : '';
+
+    try {
+      const result = await sendBulkEmails(selectedCerts, templateName, organizationName, verificationBaseUrl);
+      
+      if (result.success) {
+        // 检查是否有失败的邮件
+        const failedEmails = result.results.filter(r => !r.success);
+        
+        if (failedEmails.length === 0) {
+          // 全部成功
+          setSnackbar({
+            open: true,
+            message: `Successfully sent ${result.results.length} emails`,
+            severity: 'success'
+          });
+        } else {
+          // 部分失败
+          const successCount = result.results.length - failedEmails.length;
+          const failedEmailsList = failedEmails.map(r => r.email).join(', ');
+          
+          setSnackbar({
+            open: true,
+            message: `Sent ${successCount}/${result.results.length} emails successfully. Failed: ${failedEmailsList}`,
+            severity: 'warning'
+          });
+        }
+      } else {
+        setSnackbar({
+          open: true,
+          message: `Failed to send bulk emails: ${result.message}`,
+          severity: 'error'
+        });
+      }
+
+      // 清空选择
+      setSelectedForBulk(new Set());
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Failed to send bulk emails: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        severity: 'error'
+      });
+    } finally {
+      setIsBulkSending(false);
+    }
+  };
+
+  // 选择所有证书用于批量发送
+  const handleSelectAllForBulk = () => {
+    if (selectedForBulk.size === certificates.length) {
+      setSelectedForBulk(new Set());
+    } else {
+      setSelectedForBulk(new Set(certificates.map(cert => cert.id)));
+    }
+  };
+
+  // 选择单个证书用于批量发送
+  const handleSelectCertificateForBulk = (certificateId: string) => {
+    const newSelected = new Set(selectedForBulk);
+    if (newSelected.has(certificateId)) {
+      newSelected.delete(certificateId);
+    } else {
+      newSelected.add(certificateId);
+    }
+    setSelectedForBulk(newSelected);
+  };
+
   if (!organization) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -322,9 +429,52 @@ export default function CertificatesPage() {
         </Card>
       ) : (
         <Card>
+          {/* 批量操作工具栏 */}
+          {selectedForBulk.size > 0 && (
+            <Box sx={{ 
+              p: 2, 
+              bgcolor: 'primary.light', 
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <Typography variant="body1">
+                {selectedForBulk.size} certificate{selectedForBulk.size !== 1 ? 's' : ''} selected for bulk email
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  onClick={() => setSelectedForBulk(new Set())}
+                  disabled={isBulkSending}
+                >
+                  Clear Selection
+                </Button>
+                <Button
+                  variant="contained"
+                  color="inherit"
+                  startIcon={isBulkSending ? <CircularProgress size={16} /> : <EmailIcon />}
+                  onClick={handleBulkEmailSend}
+                  disabled={isBulkSending}
+                >
+                  {isBulkSending ? 'Sending...' : `Send ${selectedForBulk.size} Email${selectedForBulk.size !== 1 ? 's' : ''}`}
+                </Button>
+              </Box>
+            </Box>
+          )}
+
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    checked={selectedForBulk.size === certificates.length && certificates.length > 0}
+                    indeterminate={selectedForBulk.size > 0 && selectedForBulk.size < certificates.length}
+                    onChange={handleSelectAllForBulk}
+                    disabled={isBulkSending}
+                  />
+                </TableCell>
                 <TableCell>Recipient Email</TableCell>
                 <TableCell>Certificate Key</TableCell>
                 <TableCell>Status</TableCell>
@@ -335,6 +485,13 @@ export default function CertificatesPage() {
             <TableBody>
               {certificates.map((cert) => (
                 <TableRow key={cert.id}>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      checked={selectedForBulk.has(cert.id)}
+                      onChange={() => handleSelectCertificateForBulk(cert.id)}
+                      disabled={isBulkSending}
+                    />
+                  </TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight="medium">
                       {cert.recipient_email}
@@ -394,6 +551,14 @@ export default function CertificatesPage() {
                       >
                         <DeleteIcon />
                       </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleSendSingleEmail(cert)}
+                        title="Send Email Notification"
+                        color="primary"
+                      >
+                        <EmailIcon />
+                      </IconButton>
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -402,6 +567,13 @@ export default function CertificatesPage() {
           </Table>
         </Card>
       )}
+
+
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar(s => ({...s, open: false}))}>
+        <MuiAlert elevation={6} variant="filled" onClose={() => setSnackbar(s => ({...s, open: false}))} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </MuiAlert>
+      </Snackbar>
 
       {/* Edit Certificate Dialog */}
       <Dialog open={isEditDialogOpen} onClose={handleCancelEdit} maxWidth="sm" fullWidth>
