@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Box, 
   Typography, 
@@ -37,36 +37,12 @@ import {
   Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabaseClient';
-import { Template } from '@/types/template';
-
-interface Certificate {
-  id: string;
-  template_id: string;
-  publisher_id: string;
-  recipient_email: string;
-  metadata_values: Record<string, any>;
-  content_hash: string;
-  certificate_key: string;
-  watermark_data: Record<string, any>;
-  pdf_url?: string;
-  issued_at: string;
-  expires_at?: string;
-  status: 'active' | 'revoked' | 'expired';
-  created_at: string;
-  updated_at: string;
-}
-
-interface TemplateWithCount extends Template {
-  certificateCount: number;
-}
+import { useCertificates } from '@/hooks/useCertificates';
+import { useTemplates } from '@/hooks/useTemplates';
+import type { Certificate } from '@/types/certificate';
 
 export default function CertificatesPage() {
   const { organization } = useAuth();
-  const [certificates, setCertificates] = useState<Certificate[]>([]);
-  const [templates, setTemplates] = useState<TemplateWithCount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [editingCertificate, setEditingCertificate] = useState<Certificate | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -79,108 +55,35 @@ export default function CertificatesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    if (organization) {
-      loadCertificates();
-      loadTemplatesWithCounts();
-    }
-  }, [organization]);
+  // Use custom hooks for data management
+  const {
+    certificates,
+    loading: certificatesLoading,
+    error: certificatesError,
+    refetch: refetchCertificates,
+    updateCertificate,
+    deleteCertificate
+  } = useCertificates({
+    publisherId: organization?.id || '',
+    templateId: selectedTemplateId,
+    autoFetch: !!organization
+  });
 
-  const loadCertificates = async () => {
-    if (!organization) return;
+  const {
+    templates,
+    loading: templatesLoading,
+    error: templatesError,
+    refetch: refetchTemplates
+  } = useTemplates({
+    publisherId: organization?.id || '',
+    autoFetch: !!organization
+  });
 
-    try {
-      setLoading(true);
-      setError(null);
+  // Compute loading and error states
+  const loading = useMemo(() => certificatesLoading || templatesLoading, [certificatesLoading, templatesLoading]);
+  const error = useMemo(() => certificatesError || templatesError, [certificatesError, templatesError]);
 
-      let query = supabase
-        .from('certificates')
-        .select('*')
-        .eq('publisher_id', organization.id)
-        .order('created_at', { ascending: false });
-
-      if (selectedTemplateId) {
-        query = query.eq('template_id', selectedTemplateId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      setCertificates(data || []);
-    } catch (err) {
-      console.error('Error loading certificates:', err);
-      setError('Failed to load certificates');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadTemplatesWithCounts = async () => {
-    if (!organization) return;
-
-    try {
-      // 首先获取组织使用过的所有模板ID
-      const { data: certificatesData, error: certificatesError } = await supabase
-        .from('certificates')
-        .select('template_id')
-        .eq('publisher_id', organization.id);
-
-      if (certificatesError) throw certificatesError;
-
-      // 提取唯一的模板ID
-      const uniqueTemplateIds = [...new Set(certificatesData?.map(cert => cert.template_id) || [])];
-      
-      console.log('Found template IDs used by organization:', uniqueTemplateIds);
-
-      if (uniqueTemplateIds.length === 0) {
-        console.log('No templates found for organization');
-        setTemplates([]);
-        return;
-      }
-
-      // 获取这些模板的详细信息
-      const { data: templatesData, error: templatesError } = await supabase
-        .from('templates')
-        .select('*')
-        .in('id', uniqueTemplateIds)
-        .order('created_at', { ascending: false });
-
-      if (templatesError) throw templatesError;
-
-      console.log('Found templates:', templatesData);
-
-      // 获取每个模板的证书数量
-      const templatesWithCounts = await Promise.all(
-        (templatesData || []).map(async (template) => {
-          const { count, error: countError } = await supabase
-            .from('certificates')
-            .select('*', { count: 'exact', head: true })
-            .eq('publisher_id', organization.id)
-            .eq('template_id', template.id);
-
-          if (countError) {
-            console.error(`Error counting certificates for template ${template.id}:`, countError);
-            return { ...template, certificateCount: 0 };
-          }
-
-          return { ...template, certificateCount: count || 0 };
-        })
-      );
-
-      setTemplates(templatesWithCounts);
-    } catch (err) {
-      console.error('Error loading templates with counts:', err);
-    }
-  };
-
-  useEffect(() => {
-    if (organization) {
-      loadCertificates();
-    }
-  }, [selectedTemplateId, organization]);
+  // Action handlers with optimistic updates
 
   const handleViewCertificate = (certificateId: string) => {
     window.open(`/certificates/${certificateId}`, '_blank');
@@ -213,67 +116,29 @@ export default function CertificatesPage() {
   const handleSaveEdit = async () => {
     if (!editingCertificate) return;
 
-    // 验证邮箱格式
+    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(editFormData.recipient_email)) {
-      setError('Please enter a valid email address');
       return;
     }
 
     try {
       setIsSaving(true);
-      setError(null);
 
-      const { error } = await supabase
-        .from('certificates')
-        .update({
-          recipient_email: editFormData.recipient_email,
-          status: editFormData.status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editingCertificate.id);
+      await updateCertificate(editingCertificate.id, {
+        recipient_email: editFormData.recipient_email,
+        status: editFormData.status
+      });
 
-      if (error) throw error;
-
-      // 重新加载证书列表
-      await loadCertificates();
-      await loadTemplatesWithCounts();
+      // Refresh templates to update counts
+      refetchTemplates();
       
       setIsEditDialogOpen(false);
       setEditingCertificate(null);
     } catch (err) {
       console.error('Error updating certificate:', err);
-      setError('Failed to update certificate');
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  // 从URL中提取文件路径的辅助函数
-  const extractFilePathFromUrl = (url: string): { bucket: string; filePath: string } | null => {
-    try {
-      const urlObj = new URL(url);
-      const pathParts = urlObj.pathname.split('/').filter(part => part !== '');
-      
-      // 支持多种Supabase Storage URL格式
-      // 格式1: /storage/v1/object/public/bucket/filepath
-      // 格式2: /storage/v1/object/authenticated/bucket/filepath
-      const objectIndex = pathParts.findIndex(part => part === 'object');
-      
-      if (objectIndex !== -1 && objectIndex + 3 < pathParts.length) {
-        const bucket = pathParts[objectIndex + 2];
-        const filePath = pathParts.slice(objectIndex + 3).join('/');
-        
-        if (bucket && filePath) {
-          return { bucket, filePath };
-        }
-      }
-      
-      console.warn('Unable to parse storage URL format:', url);
-      return null;
-    } catch (error) {
-      console.error('Error extracting file path from URL:', error);
-      return null;
     }
   };
 
@@ -282,55 +147,16 @@ export default function CertificatesPage() {
 
     try {
       setIsDeleting(true);
-      setError(null);
 
-      // 首先删除PDF文件（如果存在）
-      if (certificateToDelete.pdf_url) {
-        console.log('Attempting to delete PDF file:', certificateToDelete.pdf_url);
-        
-        const fileInfo = extractFilePathFromUrl(certificateToDelete.pdf_url);
-        console.log('Extracted file info:', fileInfo);
-        
-        if (fileInfo) {
-          const { bucket, filePath } = fileInfo;
-          console.log(`Deleting from bucket: ${bucket}, file path: ${filePath}`);
-          
-          const { error: storageError } = await supabase.storage
-            .from(bucket)
-            .remove([filePath]);
+      await deleteCertificate(certificateToDelete.id);
 
-          if (storageError) {
-            console.warn('Failed to delete PDF file from storage:', storageError);
-            // 继续删除数据库记录，即使文件删除失败
-          } else {
-            console.log('Successfully deleted PDF file from storage');
-          }
-        } else {
-          console.warn('Could not extract file info from URL:', certificateToDelete.pdf_url);
-        }
-      } else {
-        console.log('No PDF URL found for certificate');
-      }
-
-
-
-      // 删除数据库记录
-      const { error } = await supabase
-        .from('certificates')
-        .delete()
-        .eq('id', certificateToDelete.id);
-
-      if (error) throw error;
-
-      // 重新加载证书列表
-      await loadCertificates();
-      await loadTemplatesWithCounts();
+      // Refresh templates to update counts
+      refetchTemplates();
       
       setIsDeleteDialogOpen(false);
       setCertificateToDelete(null);
     } catch (err) {
       console.error('Error deleting certificate:', err);
-      setError('Failed to delete certificate');
     } finally {
       setIsDeleting(false);
     }

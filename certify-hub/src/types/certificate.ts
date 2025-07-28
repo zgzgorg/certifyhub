@@ -47,3 +47,20 @@ export type FontFamily = {
   label: string;
   value: string;
 };
+
+export interface Certificate {
+  id: string;
+  template_id: string;
+  publisher_id: string;
+  recipient_email: string;
+  metadata_values: Record<string, any>;
+  content_hash: string;
+  certificate_key: string;
+  watermark_data: Record<string, any>;
+  pdf_url?: string;
+  issued_at: string;
+  expires_at?: string;
+  status: 'active' | 'revoked' | 'expired';
+  created_at: string;
+  updated_at: string;
+}
