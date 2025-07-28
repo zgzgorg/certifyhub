@@ -17,6 +17,7 @@
     "@mui/material": "^7.2.0",
     "@supabase/supabase-js": "^2.52.1",
     "html2canvas": "^1.4.1",
+    "isomorphic-dompurify": "^2.26.0",
     "jspdf": "^3.0.1",
     "jszip": "^3.10.1",
     "next": "15.4.4",
@@ -24,8 +25,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-draggable": "^4.5.0",
-    "uuid": "^11.1.0",
-    "xlsx": "^0.18.5"
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

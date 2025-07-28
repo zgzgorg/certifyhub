@@ -163,7 +163,7 @@ export const BulkGenerationModal: React.FC<BulkGenerationModalProps> = ({
                 <strong>How to use Bulk Generation:</strong>
               </Typography>
               <Typography variant="body2" sx={{ mb: 1 }}>
-                <strong>1. Upload Excel File:</strong> Click the button to select an Excel file (.xlsx, .xls, .csv)
+                <strong>1. Upload CSV File:</strong> Click the button to select a CSV file (Excel files must be saved as CSV for security)
               </Typography>
               <Typography variant="body2" sx={{ mb: 1 }}>
                 <strong>2. Paste Excel Data:</strong> Copy data from Excel and paste it into the designated area
@@ -281,11 +281,11 @@ Zephyr    2024-01-16  CERT002           zephyr@example.com`}
             variant="outlined" 
             onClick={() => bulkFileInputRef.current?.click()}
           >
-            Upload Excel File
+            Upload CSV File
           </Button>
           <input
             type="file"
-            accept=".xlsx,.xls,.csv"
+            accept=".csv,text/csv,application/csv"
             ref={bulkFileInputRef}
             onChange={onBulkFile}
             style={{ display: 'none' }}

@@ -1,5 +1,13 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Certificate } from '@/types/certificate';
+import { 
+  SecurityContext, 
+  canAccessCertificate, 
+  canModifyCertificate,
+  secureQuery,
+  sanitizeError 
+} from '@/utils/auth';
+import { sanitizeMetadata } from '@/utils/validation';
 
 interface CertificateFilters {
   templateId?: string;
@@ -44,97 +52,210 @@ export class CertificateService {
     this.cache.clear();
   }
 
-  async getCertificates(filters: CertificateFilters): Promise<Certificate[]> {
-    const cacheKey = this.getCacheKey('getCertificates', filters);
-    const cached = this.getCache(cacheKey);
-    if (cached) return cached;
-
-    let query = supabase
-      .from('certificates')
-      .select('*')
-      .eq('publisher_id', filters.publisherId)
-      .order('created_at', { ascending: false });
-
-    if (filters.templateId) {
-      query = query.eq('template_id', filters.templateId);
-    }
-
-    if (filters.status) {
-      query = query.eq('status', filters.status);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to fetch certificates: ${error.message}`);
-    }
-
-    const certificates = data || [];
-    this.setCache(cacheKey, certificates);
-    return certificates;
-  }
-
-  async getCertificateById(id: string): Promise<Certificate | null> {
-    const cacheKey = this.getCacheKey('getCertificateById', { id });
-    const cached = this.getCache(cacheKey);
-    if (cached) return cached;
-
-    const { data, error } = await supabase
-      .from('certificates')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null;
+  async getCertificates(
+    filters: CertificateFilters, 
+    context: SecurityContext
+  ): Promise<Certificate[]> {
+    return secureQuery(context, async () => {
+      // Verify user can access certificates for this publisher
+      // For organizations: user's auth ID should match the organization's user_id
+      // The publisherId in filters is the organization.id, but we need to check 
+      // if the authenticated user owns this organization
+      if (!context.isAdmin && !context.isOrganization) {
+        throw new Error('Access denied');
       }
-      throw new Error(`Failed to fetch certificate: ${error.message}`);
-    }
+      
+      // For organizations, the publisherId should match their organization ID
+      if (context.isOrganization && context.organizationId !== filters.publisherId) {
+        throw new Error('Access denied');
+      }
 
-    this.setCache(cacheKey, data);
-    return data;
+      const cacheKey = this.getCacheKey('getCertificates', { ...filters, userId: context.user?.id });
+      const cached = this.getCache(cacheKey);
+      if (cached) return cached;
+
+      let query = supabase
+        .from('certificates')
+        .select('*')
+        .eq('publisher_id', filters.publisherId)
+        .order('created_at', { ascending: false });
+
+      if (filters.templateId) {
+        query = query.eq('template_id', filters.templateId);
+      }
+
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw new Error(sanitizeError(error));
+      }
+
+      const certificates = data || [];
+      this.setCache(cacheKey, certificates);
+      return certificates;
+    }).then(result => {
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch certificates');
+      }
+      return result.data || [];
+    });
   }
 
-  async updateCertificate(id: string, updates: Partial<Certificate>): Promise<Certificate> {
-    const { data, error } = await supabase
-      .from('certificates')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
+  async getCertificateById(
+    id: string, 
+    context: SecurityContext
+  ): Promise<Certificate | null> {
+    return secureQuery(context, async () => {
+      const cacheKey = this.getCacheKey('getCertificateById', { id, userId: context.user?.id });
+      const cached = this.getCache(cacheKey);
+      if (cached) {
+        // Re-check authorization for cached data
+        if (!canAccessCertificate(context, cached)) {
+          throw new Error('Access denied');
+        }
+        return cached;
+      }
 
-    if (error) {
-      throw new Error(`Failed to update certificate: ${error.message}`);
-    }
+      const { data, error } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    // Clear related cache entries
-    this.clearCache();
-    return data;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+        throw new Error(sanitizeError(error));
+      }
+
+      // Check authorization
+      if (!canAccessCertificate(context, data)) {
+        throw new Error('Access denied');
+      }
+
+      this.setCache(cacheKey, data);
+      return data;
+    }).then(result => {
+      if (!result.success) {
+        if (result.error === 'Access denied') {
+          return null; // Return null instead of throwing for access denied
+        }
+        throw new Error(result.error || 'Failed to fetch certificate');
+      }
+      return result.data || null;
+    });
   }
 
-  async deleteCertificate(id: string): Promise<void> {
-    // First get the certificate to check for PDF URL
-    const certificate = await this.getCertificateById(id);
-    
-    if (certificate?.pdf_url) {
-      await this.deletePDFFile(certificate.pdf_url);
-    }
+  async updateCertificate(
+    id: string, 
+    updates: Partial<Certificate>, 
+    context: SecurityContext
+  ): Promise<Certificate> {
+    return secureQuery(context, async () => {
+      // First get the certificate to check permissions (use direct query to avoid recursion)
+      const { data: existing, error: fetchError } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    const { error } = await supabase
-      .from('certificates')
-      .delete()
-      .eq('id', id);
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          throw new Error('Certificate not found');
+        }
+        throw new Error(sanitizeError(fetchError));
+      }
+      if (!existing) {
+        throw new Error('Certificate not found');
+      }
 
-    if (error) {
-      throw new Error(`Failed to delete certificate: ${error.message}`);
-    }
+      // Check authorization
+      if (!canModifyCertificate(context, existing)) {
+        throw new Error('Access denied');
+      }
 
-    // Clear cache
-    this.clearCache();
+      // Sanitize and validate updates
+      const sanitizedUpdates: Partial<Certificate> = {};
+      
+      if (updates.recipient_email) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.recipient_email)) {
+          throw new Error('Invalid email format');
+        }
+        sanitizedUpdates.recipient_email = updates.recipient_email;
+      }
+
+      if (updates.status && ['active', 'revoked', 'expired'].includes(updates.status)) {
+        sanitizedUpdates.status = updates.status;
+      }
+
+      if (updates.metadata_values) {
+        sanitizedUpdates.metadata_values = sanitizeMetadata(updates.metadata_values);
+      }
+
+      const { data, error } = await supabase
+        .from('certificates')
+        .update({
+          ...sanitizedUpdates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(sanitizeError(error));
+      }
+
+      // Clear related cache entries
+      this.clearCache();
+      return data;
+    }).then(result => {
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update certificate');
+      }
+      return result.data!;
+    });
+  }
+
+  async deleteCertificate(id: string, context: SecurityContext): Promise<void> {
+    return secureQuery(context, async () => {
+      // First get the certificate to check permissions
+      const certificate = await this.getCertificateById(id, context);
+      if (!certificate) {
+        throw new Error('Certificate not found');
+      }
+
+      // Check authorization
+      if (!canModifyCertificate(context, certificate)) {
+        throw new Error('Access denied');
+      }
+
+      // Delete associated PDF file if exists
+      if (certificate.pdf_url) {
+        await this.deletePDFFile(certificate.pdf_url);
+      }
+
+      const { error } = await supabase
+        .from('certificates')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw new Error(sanitizeError(error));
+      }
+
+      // Clear cache
+      this.clearCache();
+    }).then(result => {
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete certificate');
+      }
+    });
   }
 
   private async deletePDFFile(pdfUrl: string): Promise<void> {

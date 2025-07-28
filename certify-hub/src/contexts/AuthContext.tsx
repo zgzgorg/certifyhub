@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, signOutSafely } from '../lib/supabaseClient';
 import { Organization, RegularUser } from '../types/user';
+import { debug } from '../utils/debug';
 
 interface AuthContextType {
   user: User | null;
@@ -52,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const resetAuthState = useCallback(() => {
-    console.log('🔄 Resetting auth state...');
+    debug.auth('Resetting auth state...');
     
     // Cancel any ongoing fetch operations
     if (abortControllerRef.current) {
@@ -71,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserData = useCallback(async (userId: string): Promise<void> => {
     // Prevent concurrent requests
     if (isFetchingRef.current) {
-      console.log('⚠️ fetchUserData already in progress, skipping...');
+      debug.warn('fetchUserData already in progress, skipping...');
       return;
     }
     
@@ -83,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
     
-    console.log(`🔍 Starting fetchUserData for user: ${userId}`);
+    debug.auth(`Starting fetchUserData for user: ${userId?.substring(0, 8)}...`);
     
     isFetchingRef.current = true;
     
@@ -97,12 +98,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
-        console.error('❌ Session error:', sessionError);
+        debug.error('Session error:', sessionError.message);
         throw sessionError;
       }
       
       if (!session?.user) {
-        console.warn('⚠️ No active session found');
+        debug.warn('No active session found');
         setOrganization(null);
         setRegularUser(null);
         return;
@@ -110,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Verify user ID matches
       if (session.user.id !== userId) {
-        console.warn('⚠️ Session user ID mismatch');
+        debug.warn('Session user ID mismatch');
         return;
       }
       
@@ -118,11 +119,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       const user = session.user;
       const userRole = user?.user_metadata?.role;
-      console.log(`👤 User role: ${userRole}`);
+      
+      debug.auth(`User role: ${userRole}`);
 
       // Fetch additional user data based on role
       if (userRole === 'organization') {
-        console.log('🏢 Fetching organization data...');
+        debug.auth('Fetching organization data...');
+        
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
           .select('*')
@@ -133,13 +136,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (signal.aborted) return;
         
         if (orgError && orgError.code !== 'PGRST116') {
-          console.warn('⚠️ Organization data fetch error:', orgError);
+          debug.warn('Organization data fetch error:', orgError.message);
         }
         
         setOrganization(orgData || null);
         setRegularUser(null);
       } else if (userRole === 'regular') {
-        console.log('👤 Fetching regular user data...');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('👤 Fetching regular user data...');
+        }
+        
         const { data: userData, error: userError } = await supabase
           .from('regular_users')
           .select('*')
@@ -150,28 +156,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (signal.aborted) return;
         
         if (userError && userError.code !== 'PGRST116') {
-          console.warn('⚠️ Regular user data fetch error:', userError);
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('⚠️ Regular user data fetch error:', userError.message);
+          }
         }
         
         setRegularUser(userData || null);
         setOrganization(null);
       } else {
-        console.log('👤 Basic user without additional profile');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('👤 Basic user without additional profile');
+        }
         setOrganization(null);
         setRegularUser(null);
       }
       
-      console.log('✅ fetchUserData completed successfully');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ fetchUserData completed successfully');
+      }
       
     } catch (error: unknown) {
       if (signal.aborted) {
-        console.log('🚫 Request was aborted');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🚫 Request was aborted');
+        }
         return;
       }
       
-      console.error('❌ Error fetching user data:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setError(`Failed to load user data: ${errorMessage}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('❌ Error fetching user data:', error instanceof Error ? error.message : 'Unknown error');
+      }
+      
+      setError('Failed to load user data');
       setOrganization(null);
       setRegularUser(null);
     } finally {
@@ -192,35 +208,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
     
-    console.log('🚀 AuthProvider useEffect started');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🚀 AuthProvider useEffect started');
+    }
     
     const initializeAuth = async () => {
       try {
-        console.log('🔍 Getting initial user session...');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔍 Getting initial user session...');
+        }
+        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('❌ Session error:', error);
+          if (process.env.NODE_ENV === 'development') {
+            console.error('❌ Session error:', error.message);
+          }
           throw error;
         }
         
         if (!isMounted) return;
         
         const user = session?.user || null;
-        console.log('👤 Initial user:', user ? user.id : 'null');
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('👤 Initial user:', user ? `${user.id.substring(0, 8)}...` : 'null');
+        }
+        
         setUser(user);
         
         if (user) {
-          console.log('🔄 Fetching user data for initial user...');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🔄 Fetching user data for initial user...');
+          }
           await debouncedFetchUserData(user.id);
         } else {
-          console.log('👤 No initial user, setting loading to false');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('👤 No initial user, setting loading to false');
+          }
           setLoading(false);
         }
       } catch (error: unknown) {
-        console.error('❌ Error getting user:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('❌ Error getting user:', error instanceof Error ? error.message : 'Unknown error');
+        }
         if (isMounted) {
-          setError(error instanceof Error ? error.message : 'Failed to load user');
+          setError('Failed to load user');
           setLoading(false);
         }
       }
@@ -228,33 +261,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initializeAuth();
 
-    console.log('👂 Setting up auth state change listener...');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('👂 Setting up auth state change listener...');
+    }
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMounted) return;
         
-        console.log('🔄 Auth state change:', event, session?.user?.id);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔄 Auth state change:', event, session?.user ? `${session.user.id.substring(0, 8)}...` : 'null');
+        }
         
         // Skip initial session to avoid duplicate data fetching
         if (event === 'INITIAL_SESSION') {
-          console.log('⚠️ Skipping INITIAL_SESSION');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('⚠️ Skipping INITIAL_SESSION');
+          }
           return;
         }
         
         setUser(session?.user ?? null);
         
         if (session?.user && event !== 'TOKEN_REFRESHED') {
-          console.log('🔄 Fetching user data after auth state change...');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🔄 Fetching user data after auth state change...');
+          }
           debouncedFetchUserData(session.user.id);
         } else if (!session?.user) {
-          console.log('👤 No session user, clearing user data...');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('👤 No session user, clearing user data...');
+          }
           resetAuthState();
         }
       }
     );
 
     return () => {
-      console.log('🧹 Cleaning up AuthProvider useEffect');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🧹 Cleaning up AuthProvider useEffect');
+      }
       isMounted = false;
       subscription.unsubscribe();
       debouncedFetchUserData.cancel();
@@ -263,7 +309,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [debouncedFetchUserData, resetAuthState]);
 
   const retry = useCallback(async () => {
-    console.log('🔄 Retry function called');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 Retry function called');
+    }
     if (user) {
       setLoading(true);
       setError(null);
@@ -272,14 +320,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchUserData]);
 
   const signOut = useCallback(async () => {
-    console.log('🚪 Sign out function called');
+    debug.auth('Sign out function called');
+    
     try {
       debouncedFetchUserData.cancel();
-      await supabase.auth.signOut();
-      console.log('✅ Sign out successful');
+      
+      // Use the safer sign out method
+      const result = await signOutSafely();
+      
+      if (result.error) {
+        debug.warn('Sign out completed with warnings:', result.error);
+      } else {
+        debug.success('Sign out completed successfully');
+      }
+      
     } catch (error) {
-      console.error('❌ Sign out error:', error);
+      debug.error('Sign out error:', error instanceof Error ? error.message : 'Unknown error');
+      // Continue to clear local state even if there was an error
     } finally {
+      // Always clear local state regardless of server response
       resetAuthState();
     }
   }, [debouncedFetchUserData, resetAuthState]);
