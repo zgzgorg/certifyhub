@@ -9,7 +9,7 @@ export default function NavigationBar() {
   const { user, organization, regularUser, signOut } = useAuth();
   const pathname = usePathname();
 
-  // 检查当前页面是否匹配
+  // Check if current page matches
   const isActive = (path: string) => {
     if (path === '/') {
       return pathname === '/';

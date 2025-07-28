@@ -124,7 +124,7 @@ export default function TemplateUploadModal({ isOpen, onClose, onUploaded }: Tem
     } catch (error) {
       console.error('Upload error:', error);
       
-      // 提供更详细的错误信息
+      // Provide more detailed error information
       let errorMessage = 'Failed to upload template. Please try again.';
       
       if (error && typeof error === 'object') {

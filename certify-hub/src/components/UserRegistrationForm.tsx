@@ -38,7 +38,10 @@ export default function UserRegistrationForm() {
     setMessage(null);
 
     try {
-      // 1. 创建用户账户
+      setLoading(true);
+      setMessage(null);
+
+      // 1. Create user account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -55,7 +58,7 @@ export default function UserRegistrationForm() {
       }
 
       if (authData.user) {
-        // 2. 创建普通用户记录
+        // 2. Create regular user record
         const { error: userError } = await supabase
           .from('regular_users')
           .insert({
@@ -74,7 +77,7 @@ export default function UserRegistrationForm() {
           text: 'Registration successful! Please check your email for verification.'
         });
 
-        // 清空表单
+        // Clear form
         setFormData({
           name: '',
           email: '',

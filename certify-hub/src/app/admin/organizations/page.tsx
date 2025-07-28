@@ -41,7 +41,7 @@ export default function AdminOrganizationsPage() {
       if (error) {
         console.error('Error updating organization:', error);
       } else {
-        // 刷新列表
+        // Refresh list
         fetchOrganizations();
       }
     } catch (error) {

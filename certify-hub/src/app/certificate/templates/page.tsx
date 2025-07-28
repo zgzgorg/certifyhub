@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import TemplateUploadModal from '@/components/TemplateUploadModal';
@@ -16,65 +16,46 @@ export default function TemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
   const [editingMetadata, setEditingMetadata] = useState<TemplateMetadata | null>(null);
-  const [hasFetched, setHasFetched] = useState(false);
+  const hasFetched = useRef(false);
 
-  // 参数化fetchTemplates
-  const fetchTemplates = useCallback(async (userId: string) => {
+  // Parameterize fetchTemplates
+  const fetchTemplates = useCallback(async () => {
+    if (!user?.id) return;
+    
     try {
-      console.log('🔍 Fetching templates for user:', userId);
       setLoading(true);
-      if (!userId) {
-        setTemplates([]);
-        return;
-      }
       const { data, error } = await supabase
         .from('templates')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+
       if (error) {
-        console.error('❌ Supabase error fetching templates:', error);
-        throw error;
+        console.error('Error fetching templates:', error);
+        return;
       }
-      console.log('✅ Templates fetched successfully:', data?.length || 0, 'templates');
+
       setTemplates(data || []);
-    } catch (error: unknown) {
-      console.error('❌ Error fetching templates:', error);
-      let errorMessage = 'Failed to fetch templates';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'object' && error !== null) {
-        errorMessage = JSON.stringify(error);
-      }
-      console.error('📋 Detailed error info:', {
-        error,
-        errorType: typeof error,
-        errorMessage,
-        user: user?.id,
-        timestamp: new Date().toISOString()
-      });
-      setTemplates([]);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
-  // 只在user.id首次有值时fetch一次，退出登录后重置
+  // Only fetch once when user.id first has a value, reset after logout
   useEffect(() => {
-    if (user?.id && !hasFetched) {
-      fetchTemplates(user.id);
-      setHasFetched(true);
+    if (user?.id && !hasFetched.current) {
+      fetchTemplates();
+      hasFetched.current = true;
+    } else if (!user?.id) {
+      hasFetched.current = false;
     }
-    if (!user?.id) {
-      setTemplates([]);
-      setLoading(false);
-      setHasFetched(false);
-    }
-  }, [user?.id, hasFetched, fetchTemplates]);
+  }, [user?.id, fetchTemplates]);
 
-  // 上传/删除后自动刷新
+  // Auto-refresh after upload/delete
   const handleTemplateUploaded = useCallback(() => {
-    setHasFetched(false);
+    hasFetched.current = false;
     setIsUploadModalOpen(false);
   }, []);
 
@@ -96,7 +77,7 @@ export default function TemplatesPage() {
         .delete()
         .eq('id', templateId);
       if (error) throw error;
-      setHasFetched(false);
+      hasFetched.current = false;
     } catch (error) {
       console.error('Error deleting template:', error);
     }
@@ -146,7 +127,7 @@ export default function TemplatesPage() {
       setIsMetadataEditorOpen(false);
       setSelectedTemplate(null);
       setEditingMetadata(null);
-      setHasFetched(false);
+      hasFetched.current = false;
     } catch (error) {
       console.error('Error saving metadata:', error);
       alert('Failed to save metadata');

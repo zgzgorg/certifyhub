@@ -71,13 +71,17 @@ export const validateHeader = (
 };
 
 /**
- * Secure CSV parser that handles quoted fields and escapes
+ * Secure parser that handles both CSV (comma) and Excel (tab) formats
  */
 const parseCSVLine = (line: string): string[] => {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
   let i = 0;
+  
+  // Detect delimiter: if line contains tabs, use tab; otherwise use comma
+  const hasTabs = line.includes('\t');
+  const delimiter = hasTabs ? '\t' : ',';
   
   while (i < line.length) {
     const char = line[i];
@@ -93,7 +97,7 @@ const parseCSVLine = (line: string): string[] => {
         inQuotes = !inQuotes;
         i++;
       }
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === delimiter && !inQuotes) {
       // Field separator
       result.push(current.trim());
       current = '';
@@ -169,10 +173,18 @@ export const parseExcelData = (text: string, editableFields: CertificateField[])
     // Validate header structure
     const validation = validateHeader(header, editableFields);
     if (!validation.isValid) {
+      const requiredFields = editableFields.map(f => f.label).join(', ');
       const errorMsg = validation.error || 
-        `Header validation failed. Missing fields: ${validation.missingFields.join(', ')}. ` +
-        (validation.extraFields.length > 0 ? `Extra fields: ${validation.extraFields.join(', ')}. ` : '') +
-        `Required fields: ${editableFields.map(f => f.label).join(', ')}. Optional: Recipient Email.`;
+        `Excel/CSV format validation failed.\n\n` +
+        `Missing fields: ${validation.missingFields.join(', ')}\n\n` +
+        (validation.extraFields.length > 0 ? `Extra fields: ${validation.extraFields.join(', ')}\n\n` : '') +
+        `Required fields: ${requiredFields}\n` +
+        `Optional field: Recipient Email\n\n` +
+        `Please ensure the first row of your Excel/CSV contains these column headers:\n` +
+        `${requiredFields}${editableFields.length > 0 ? ',' : ''} Recipient Email (optional)\n\n` +
+        `Supported formats:\n` +
+        `- Excel format: Tab-separated (copy from Excel)\n` +
+        `- CSV format: Comma-separated (CSV files)`;
       return { rows: [], error: errorMsg };
     }
     

@@ -19,7 +19,7 @@ export default function CheckUserPage() {
     setMessage('');
 
     try {
-      // 尝试从数据库查询用户信息
+      // Try to query user information from database
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .select('*')

@@ -39,17 +39,18 @@ export default function OrganizationRegistrationForm() {
       return;
     }
 
-    setLoading(true);
-    setMessage(null);
-
     try {
-      // 1. 创建用户账户
+      setLoading(true);
+      setMessage(null);
+
+      // 1. Create user account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
-            role: 'organization'
+            role: 'organization',
+            name: formData.name
           }
         }
       });
@@ -59,18 +60,18 @@ export default function OrganizationRegistrationForm() {
       }
 
       if (authData.user) {
-        // 2. 创建机构记录
+        // 2. Create organization record
         const { error: orgError } = await supabase
           .from('organizations')
           .insert({
             name: formData.name,
             email: formData.email,
+            user_id: authData.user.id,
             description: formData.description || null,
             website: formData.website || null,
             contact_person: formData.contact_person,
             contact_phone: formData.contact_phone || null,
-            status: 'pending',
-            user_id: authData.user.id
+            status: 'pending'
           });
 
         if (orgError) {
@@ -83,7 +84,7 @@ export default function OrganizationRegistrationForm() {
           text: 'Registration successful! Please check your email for verification. Your organization will be reviewed by an administrator.'
         });
 
-        // 清空表单
+        // Clear form
         setFormData({
           name: '',
           email: '',

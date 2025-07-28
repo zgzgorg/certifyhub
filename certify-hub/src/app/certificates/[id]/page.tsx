@@ -76,6 +76,12 @@ interface OrganizationData {
   updated_at: string;
 }
 
+interface CertificateDetailPageProps {
+  certificate: CertificateData;
+  template: TemplateData;
+  organization: OrganizationData;
+}
+
 export default function CertificateDetailPage({ 
   params 
 }: { 
@@ -115,7 +121,7 @@ export default function CertificateDetailPage({
       setLoading(true);
       setError(null);
 
-      // 获取证书详情 - 所有人都可以查看
+      // Get certificate details - everyone can view
       const { data: certificateData, error: certificateError } = await supabase
         .from('certificates')
         .select('*')
@@ -134,7 +140,7 @@ export default function CertificateDetailPage({
       const certificate = certificateData as CertificateData;
       setCertificate(certificate);
 
-      // 获取模板信息
+      // Get template information
       const { data: templateData, error: templateError } = await supabase
         .from('templates')
         .select('*')
@@ -147,7 +153,7 @@ export default function CertificateDetailPage({
         setTemplate(templateData as TemplateData);
       }
 
-      // 获取发布者组织信息
+      // Get publisher organization information
       const { data: publisherData, error: publisherError } = await supabase
         .from('organizations')
         .select('*')
@@ -214,7 +220,7 @@ export default function CertificateDetailPage({
     }
   };
 
-  // 显示加载状态
+  // Show loading state
   if (loading) {
     return (
       <Box sx={{ p: 4, maxWidth: 1200, mx: 'auto' }}>

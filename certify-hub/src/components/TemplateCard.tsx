@@ -223,5 +223,5 @@ function TemplateCard({ template, onDelete, onManageMetadata }: TemplateCardProp
   );
 }
 
-// 使用memo包装组件并正确导出
+// Use memo to wrap component and export correctly
 export default memo(TemplateCard); 

@@ -19,7 +19,7 @@ export default function LoginForm() {
     // Create abort controller for request cancellation
     const abortController = new AbortController();
     
-    // 添加超时机制
+    // Add timeout mechanism
     const timeoutId = setTimeout(() => {
       abortController.abort();
       setLoading(false);
@@ -29,8 +29,8 @@ export default function LoginForm() {
     try {
       console.log('🚀 Attempting login for:', email);
       
-      // 策略1: 链式处理，避免并发
-      // 策略4: 直接使用返回的session对象，避免重新请求
+      // Strategy 1: Chain processing, avoid concurrency
+      // Strategy 4: Use the returned session object directly, avoid re-requesting
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -41,7 +41,7 @@ export default function LoginForm() {
       if (error) {
         console.error('❌ Login error:', error);
         
-        // 提供更详细的错误信息
+        // Provide more detailed error information
         let errorMessage = error.message;
         if (error.message.includes('Invalid login credentials')) {
           errorMessage = 'Invalid email or password. Please check your credentials and try again.';
@@ -59,17 +59,17 @@ export default function LoginForm() {
         console.log('👤 User data:', data.user);
         console.log('🔑 Session data:', data.session);
         
-        // 策略4: 直接使用返回的session对象，无需重新验证
+        // Strategy 4: Use the returned session object directly, no need to re-verify
         if (data.session?.user) {
           console.log('✅ Session verified from response, user:', data.session.user.id);
           setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
           
-          // 策略3: 适当延时，等待AuthContext处理完状态变化
-          // 但使用更短的延时，因为我们已经有了session
+          // Strategy 3: Appropriate delay, wait for AuthContext to handle state changes
+          // But use shorter delay since we already have the session
           setTimeout(() => {
             console.log('🔄 Redirecting to dashboard...');
             router.push('/dashboard');
-          }, 800); // 减少延迟，因为已经有了session
+          }, 800); // Reduce delay since we already have the session
         } else {
           console.error('❌ No session in response');
           setMessage({ type: 'error', text: 'Login succeeded but no session created. Please try again.' });
@@ -108,7 +108,7 @@ export default function LoginForm() {
     setLoading(true);
     setMessage(null);
 
-    // 添加超时机制
+    // Add timeout mechanism
     const timeoutId = setTimeout(() => {
       setLoading(false);
       setMessage({ type: 'error', text: 'Request timed out. Please try again.' });

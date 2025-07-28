@@ -256,13 +256,15 @@ Zephyr    2024-01-16  CERT002           zephyr@example.com`}
         </Box>
 
         {/* Error Messages */}
-        <Collapse in={showError}>
+        <Collapse in={!!errorMessage}>
           <Alert 
             severity="error" 
             sx={{ mb: 2 }}
-            onClose={onClearError}
+            onClose={clearError}
           >
-            {errorMessage}
+            <div style={{ whiteSpace: 'pre-line' }}>
+              {errorMessage}
+            </div>
           </Alert>
         </Collapse>
 
@@ -277,19 +279,25 @@ Zephyr    2024-01-16  CERT002           zephyr@example.com`}
         </Collapse>
 
         <div className="flex gap-4 mb-4">
-          <Button 
-            variant="outlined" 
-            onClick={() => bulkFileInputRef.current?.click()}
-          >
-            Upload CSV File
-          </Button>
-          <input
-            type="file"
-            accept=".csv,text/csv,application/csv"
-            ref={bulkFileInputRef}
-            onChange={onBulkFile}
-            style={{ display: 'none' }}
-          />
+          <div className="flex flex-col gap-2">
+            <Button 
+              variant="outlined" 
+              onClick={() => bulkFileInputRef.current?.click()}
+            >
+              Upload CSV File
+            </Button>
+            <div className="text-xs text-gray-500 max-w-xs">
+              For security reasons, only CSV files are supported. 
+              Please convert your Excel files to CSV format before uploading.
+            </div>
+            <input
+              type="file"
+              accept=".csv,text/csv,application/csv"
+              ref={bulkFileInputRef}
+              onChange={onBulkFile}
+              style={{ display: 'none' }}
+            />
+          </div>
           <div className="flex flex-col gap-2">
             <Button
               variant="outlined"
@@ -310,6 +318,37 @@ Zephyr    2024-01-16  CERT002           zephyr@example.com`}
               }}
             >
               Paste Excel Data
+            </Button>
+            <Button
+              variant="text"
+              size="small"
+              onClick={() => {
+                const helpText = `Excel/CSV Format Requirements:
+
+Required column headers (first row):
+${editableFields.map(f => `- ${f.label}`).join('\n')}
+- Recipient Email (optional, for certificate issuance)
+
+Supported formats:
+1. Excel format (tab-separated):
+${editableFields.map(f => f.label).join('\t')}${editableFields.length > 0 ? '\t' : ''}Recipient Email
+John Doe\t2024-01-15\tCERT001\tjohn@example.com
+
+2. CSV format (comma-separated):
+${editableFields.map(f => f.label).join(',')}${editableFields.length > 0 ? ',' : ''}Recipient Email
+John Doe,2024-01-15,CERT001,john@example.com
+
+Notes:
+- Column headers must match exactly (case-sensitive)
+- First row must be column headers
+- Data starts from second row
+- Empty rows are automatically ignored
+- System automatically detects delimiter type`;
+                alert(helpText);
+              }}
+              sx={{ fontSize: '0.75rem', minWidth: 'auto', p: 0.5 }}
+            >
+              📋 Format Help
             </Button>
             <div
               id="paste-excel-area"
