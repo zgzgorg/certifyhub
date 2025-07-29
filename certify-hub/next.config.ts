@@ -75,6 +75,7 @@ const nextConfig: NextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://mgwhyyydiudpwufipnyl.supabase.co",
               "connect-src 'self' https://mgwhyyydiudpwufipnyl.supabase.co wss://mgwhyyydiudpwufipnyl.supabase.co",
+              "frame-src 'self' https://mgwhyyydiudpwufipnyl.supabase.co blob:", // Allow PDF iframes
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",

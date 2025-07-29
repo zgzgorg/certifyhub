@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import DateDisplay from '@/components/DateDisplay';
 import ClientOnly from '@/components/ClientOnly';
+import PDFPreview from '@/components/PDFPreview';
 
 interface CertificateData {
   id: string;
@@ -491,21 +492,12 @@ export default function CertificateDetailPage({
                 <Divider sx={{ mb: 3 }} />
                 
                 {certificate.pdf_url ? (
-                  <Box sx={{ 
-                    width: '100%', 
-                    height: 600, 
-                    border: '1px solid #e0e0e0',
-                    borderRadius: 1,
-                    overflow: 'hidden'
-                  }}>
-                    <iframe
-                      src={certificate.pdf_url}
-                      width="100%"
-                      height="100%"
-                      style={{ border: 'none' }}
-                      title="Certificate PDF"
-                    />
-                  </Box>
+                  <PDFPreview 
+                    pdfUrl={certificate.pdf_url}
+                    title="Certificate Preview"
+                    height={600}
+                    showControls={true}
+                  />
                 ) : (
                   <Paper 
                     sx={{ 
