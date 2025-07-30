@@ -10,6 +10,10 @@ import { useRouter } from 'next/navigation';
 interface OrganizationWithMembers extends Organization {
   members?: OrganizationMember[];
   userRole?: string;
+  email?: string;
+  contact_person?: string;
+  contact_phone?: string;
+  website?: string;
 }
 
 export default function OrganizationsPage() {

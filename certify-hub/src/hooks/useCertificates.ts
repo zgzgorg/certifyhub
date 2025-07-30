@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { certificateService } from '@/services/certificateService';
 import type { Certificate } from '@/types/certificate';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIdentity } from '@/contexts/IdentityContext';
 
 interface UseCertificatesOptions {
-  publisherId: string;
+  publisherId?: string;
+  recipientEmail?: string;
   templateId?: string | null;
   status?: 'active' | 'revoked' | 'expired';
   autoFetch?: boolean;
@@ -20,8 +22,9 @@ interface UseCertificatesReturn {
 }
 
 export function useCertificates(options: UseCertificatesOptions): UseCertificatesReturn {
-  const { publisherId, templateId, status, autoFetch = true } = options;
+  const { publisherId, recipientEmail, templateId, status, autoFetch = true } = options;
   const { user, organization, organizationMembers } = useAuth();
+  const { currentIdentity } = useIdentity();
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,13 +39,14 @@ export function useCertificates(options: UseCertificatesOptions): UseCertificate
   }, [user, organization, organizationMembers]);
 
   const filters = useMemo(() => ({
-    publisherId,
+    ...(publisherId && { publisherId }),
+    ...(recipientEmail && { recipientEmail }),
     ...(templateId && { templateId }),
     ...(status && { status })
-  }), [publisherId, templateId, status]);
+  }), [publisherId, recipientEmail, templateId, status]);
 
   const fetchCertificates = useCallback(async () => {
-    if (!publisherId || !securityContext.isAuthenticated) return;
+    if (!securityContext.isAuthenticated) return;
 
     try {
       setLoading(true);
@@ -60,7 +64,7 @@ export function useCertificates(options: UseCertificatesOptions): UseCertificate
     } finally {
       setLoading(false);
     }
-  }, [filters, publisherId, securityContext]);
+  }, [filters, securityContext]);
 
   const updateCertificate = useCallback(async (id: string, updates: Partial<Certificate>) => {
     try {
@@ -99,10 +103,10 @@ export function useCertificates(options: UseCertificatesOptions): UseCertificate
   }, [securityContext]);
 
   useEffect(() => {
-    if (autoFetch && publisherId && securityContext.isAuthenticated) {
+    if (autoFetch && securityContext.isAuthenticated) {
       fetchCertificates();
     }
-  }, [fetchCertificates, autoFetch, publisherId, securityContext.isAuthenticated]);
+  }, [fetchCertificates, autoFetch, securityContext.isAuthenticated]);
 
   return {
     certificates,

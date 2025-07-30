@@ -105,17 +105,12 @@ export default function AdminOrganizationsPage() {
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
                           <div>
-                            <p><strong>Email:</strong> {org.email}</p>
-                            <p><strong>Contact Person:</strong> {org.contact_person}</p>
-                            {org.contact_phone && (
-                              <p><strong>Phone:</strong> {org.contact_phone}</p>
-                            )}
+                            <p><strong>Owner ID:</strong> {org.owner_id}</p>
+                            <p><strong>Status:</strong> {org.status}</p>
                           </div>
                           <div>
-                            {org.website && (
-                              <p><strong>Website:</strong> <a href={org.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{org.website}</a></p>
-                            )}
                             <p><strong>Registered:</strong> {new Date(org.created_at).toLocaleDateString()}</p>
+                            <p><strong>Updated:</strong> {new Date(org.updated_at).toLocaleDateString()}</p>
                           </div>
                         </div>
                         

@@ -76,6 +76,16 @@ export default function CertificatesPage() {
   const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(new Set());
   const [isBulkSending, setIsBulkSending] = useState(false);
 
+  // Get publisher name for display
+  const getPublisherName = (publisherId: string) => {
+    // For now, return the ID. In a real app, you'd fetch organization names
+    return publisherId;
+  };
+
+  // Helper function to check identity type
+  const isPersonalIdentity = () => currentIdentity?.type === 'personal';
+  const isOrganizationIdentity = () => currentIdentity?.type === 'organization';
+
   // Determine the publisher ID based on current identity
   const getPublisherId = () => {
     if (currentIdentity?.type === 'organization') {
@@ -85,7 +95,16 @@ export default function CertificatesPage() {
     return null;
   };
 
+  // Get recipient email for personal certificates
+  const getRecipientEmail = () => {
+    if (currentIdentity?.type === 'personal' && user?.email) {
+      return user.email;
+    }
+    return null;
+  };
+
   const publisherId = getPublisherId();
+  const recipientEmail = getRecipientEmail();
 
   // Use custom hooks for data management
   const {
@@ -96,9 +115,10 @@ export default function CertificatesPage() {
     updateCertificate,
     deleteCertificate
   } = useCertificates({
-    publisherId: publisherId || '',
+    publisherId: publisherId || undefined,
+    recipientEmail: recipientEmail || undefined,
     templateId: selectedTemplateId,
-    autoFetch: !!publisherId && hasAccess
+    autoFetch: !!currentIdentity
   });
 
   const {
@@ -110,6 +130,9 @@ export default function CertificatesPage() {
     publisherId: publisherId || '',
     autoFetch: !!publisherId && hasAccess
   });
+
+  // For personal identity, we don't need template filtering
+  const shouldShowTemplateFilter = currentIdentity?.type === 'organization';
 
   // Compute loading and error states
   const loading = useMemo(() => certificatesLoading || templatesLoading, [certificatesLoading, templatesLoading]);
@@ -335,9 +358,105 @@ export default function CertificatesPage() {
   if (currentIdentity.type === 'personal') {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
-        <Alert severity="info">
-          Personal accounts cannot issue certificates. Please switch to an organization identity to view issued certificates.
-        </Alert>
+        <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <VerifiedIcon color="success" />
+          <Typography variant="h4" component="h1">
+            My Received Certificates
+          </Typography>
+          <Chip 
+            label={`${certificates.length} certificate${certificates.length !== 1 ? 's' : ''}`} 
+            color="primary" 
+            variant="outlined" 
+          />
+        </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : certificates.length === 0 ? (
+          <Card>
+            <CardContent sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No certificates received yet
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Certificates issued to your email address will appear here.
+              </Typography>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Issuing Organization</TableCell>
+                  <TableCell>Certificate Key</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Issued Date</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {certificates.map((cert) => (
+                  <TableRow key={cert.id}>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="medium">
+                        {getPublisherName(cert.publisher_id)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" fontFamily="monospace">
+                        {cert.certificate_key.substring(0, 16)}...
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={cert.status} 
+                        color={
+                          cert.status === 'active' ? 'success' : 
+                          cert.status === 'revoked' ? 'error' : 'warning'
+                        }
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {new Date(cert.issued_at).toLocaleDateString()}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleViewCertificate(cert.id)}
+                          title="View Certificate Details"
+                        >
+                          <VisibilityIcon />
+                        </IconButton>
+                        {cert.pdf_url && (
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDownloadPDF(cert.pdf_url!)}
+                            title="Download PDF"
+                          >
+                            <DownloadIcon />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
       </Box>
     );
   }
@@ -365,10 +484,13 @@ export default function CertificatesPage() {
       <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
         <VerifiedIcon color="success" />
         <Typography variant="h4" component="h1">
-          Certificates Issued by {currentIdentity.name}
+          {currentIdentity.type === 'organization' 
+            ? `Certificates Issued by ${currentIdentity.name}`
+            : 'My Received Certificates'
+          }
         </Typography>
         <Chip 
-          label={`${certificates.length} certificates`} 
+          label={`${certificates.length} certificate${certificates.length !== 1 ? 's' : ''}`} 
           color="primary" 
           variant="outlined" 
         />
@@ -388,77 +510,79 @@ export default function CertificatesPage() {
       )}
 
       {/* Template Filter Section */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <FilterListIcon />
-            <Typography variant="h6">Filter by Template</Typography>
-          </Box>
-          
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            {/* All Templates Option */}
-            <Box>
-              <Card 
-                sx={{ 
-                  cursor: 'pointer',
-                  border: selectedTemplateId === null ? 2 : 1,
-                  borderColor: selectedTemplateId === null ? 'primary.main' : 'divider',
-                  '&:hover': { borderColor: 'primary.main' }
-                }}
-                onClick={() => handleTemplateSelect(null)}
-              >
-                <CardContent sx={{ textAlign: 'center', py: 2, px: 3 }}>
-                  <Typography variant="h6" color="primary">
-                    All Templates
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {certificates.length} certificate{certificates.length !== 1 ? 's' : ''}
-                  </Typography>
-                </CardContent>
-              </Card>
+      {shouldShowTemplateFilter && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <FilterListIcon />
+              <Typography variant="h6">Filter by Template</Typography>
             </Box>
-
-            {/* Individual Templates */}
-            {templates.map((template) => (
-              <Box key={template.id}>
+            
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {/* All Templates Option */}
+              <Box>
                 <Card 
                   sx={{ 
                     cursor: 'pointer',
-                    border: selectedTemplateId === template.id ? 2 : 1,
-                    borderColor: selectedTemplateId === template.id ? 'primary.main' : 'divider',
+                    border: selectedTemplateId === null ? 2 : 1,
+                    borderColor: selectedTemplateId === null ? 'primary.main' : 'divider',
                     '&:hover': { borderColor: 'primary.main' }
                   }}
-                  onClick={() => handleTemplateSelect(template.id)}
+                  onClick={() => handleTemplateSelect(null)}
                 >
                   <CardContent sx={{ textAlign: 'center', py: 2, px: 3 }}>
-                    <Box sx={{ mb: 1 }}>
-                      {template.file_type?.startsWith('image/') ? (
-                        <Avatar 
-                          src={template.file_url} 
-                          sx={{ width: 40, height: 40, mx: 'auto' }}
-                          variant="rounded"
-                        />
-                      ) : (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-                          {getFileIcon(template.file_type || '')}
-                        </Box>
-                      )}
-                    </Box>
-                    <Typography variant="body2" fontWeight="medium" sx={{ mb: 0.5 }}>
-                      {template.name}
+                    <Typography variant="h6" color="primary">
+                      All Templates
                     </Typography>
-                    <Badge badgeContent={(template as any).certificateCount || 0} color="primary">
-                      <Typography variant="caption" color="text.secondary">
-                        certificate{(template as any).certificateCount !== 1 ? 's' : ''}
-                      </Typography>
-                    </Badge>
+                    <Typography variant="body2" color="text.secondary">
+                      {certificates.length} certificate{certificates.length !== 1 ? 's' : ''}
+                    </Typography>
                   </CardContent>
                 </Card>
               </Box>
-            ))}
-          </Box>
-        </CardContent>
-      </Card>
+
+              {/* Individual Templates */}
+              {templates.map((template) => (
+                <Box key={template.id}>
+                  <Card 
+                    sx={{ 
+                      cursor: 'pointer',
+                      border: selectedTemplateId === template.id ? 2 : 1,
+                      borderColor: selectedTemplateId === template.id ? 'primary.main' : 'divider',
+                      '&:hover': { borderColor: 'primary.main' }
+                    }}
+                    onClick={() => handleTemplateSelect(template.id)}
+                  >
+                    <CardContent sx={{ textAlign: 'center', py: 2, px: 3 }}>
+                      <Box sx={{ mb: 1 }}>
+                        {template.file_type?.startsWith('image/') ? (
+                          <Avatar 
+                            src={template.file_url} 
+                            sx={{ width: 40, height: 40, mx: 'auto' }}
+                            variant="rounded"
+                          />
+                        ) : (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+                            {getFileIcon(template.file_type || '')}
+                          </Box>
+                        )}
+                      </Box>
+                      <Typography variant="body2" fontWeight="medium" sx={{ mb: 0.5 }}>
+                        {template.name}
+                      </Typography>
+                      <Badge badgeContent={(template as any).certificateCount || 0} color="primary">
+                        <Typography variant="caption" color="text.secondary">
+                          certificate{(template as any).certificateCount !== 1 ? 's' : ''}
+                        </Typography>
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                </Box>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Certificates Table */}
       {certificates.length === 0 ? (
@@ -523,7 +647,9 @@ export default function CertificatesPage() {
                     disabled={isBulkSending}
                   />
                 </TableCell>
-                <TableCell>Recipient Email</TableCell>
+                <TableCell>
+                  {isPersonalIdentity() ? 'Issuing Organization' : 'Recipient Email'}
+                </TableCell>
                 <TableCell>Certificate Key</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Issued Date</TableCell>
@@ -542,7 +668,7 @@ export default function CertificatesPage() {
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight="medium">
-                      {cert.recipient_email}
+                      {isPersonalIdentity() ? getPublisherName(cert.publisher_id) : cert.recipient_email}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -583,30 +709,34 @@ export default function CertificatesPage() {
                           <DownloadIcon />
                         </IconButton>
                       )}
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditCertificate(cert)}
-                        title="Edit Certificate"
-                        color="primary"
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteCertificate(cert)}
-                        title="Delete Certificate"
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleSendSingleEmail(cert)}
-                        title="Send Email Notification"
-                        color="primary"
-                      >
-                        <EmailIcon />
-                      </IconButton>
+                      {currentIdentity.type === 'organization' && (
+                        <>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditCertificate(cert)}
+                            title="Edit Certificate"
+                            color="primary"
+                          >
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteCertificate(cert)}
+                            title="Delete Certificate"
+                            color="error"
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleSendSingleEmail(cert)}
+                            title="Send Email Notification"
+                            color="primary"
+                          >
+                            <EmailIcon />
+                          </IconButton>
+                        </>
+                      )}
                     </Box>
                   </TableCell>
                 </TableRow>

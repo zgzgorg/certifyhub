@@ -12,7 +12,8 @@ import { sanitizeMetadata } from '@/utils/validation';
 interface CertificateFilters {
   templateId?: string;
   status?: 'active' | 'revoked' | 'expired';
-  publisherId: string;
+  publisherId?: string;
+  recipientEmail?: string;
 }
 
 export class CertificateService {
@@ -57,15 +58,6 @@ export class CertificateService {
     context: SecurityContext
   ): Promise<Certificate[]> {
     return secureQuery(context, async () => {
-      // Verify user can access certificates for this publisher
-      // Check if user owns the organization or is a member of the organization
-      const canAccess = context.ownedOrganizations.some(org => org.id === filters.publisherId) ||
-                       context.organizationMemberships.some(m => m.organization_id === filters.publisherId);
-      
-      if (!canAccess) {
-        throw new Error('Access denied');
-      }
-
       const cacheKey = this.getCacheKey('getCertificates', { ...filters, userId: context.user?.id });
       const cached = this.getCache(cacheKey);
       if (cached) return cached;
@@ -73,8 +65,28 @@ export class CertificateService {
       let query = supabase
         .from('certificates')
         .select('*')
-        .eq('publisher_id', filters.publisherId)
         .order('created_at', { ascending: false });
+
+      // If searching by recipient email (personal certificates)
+      if (filters.recipientEmail) {
+        query = query.eq('recipient_email', filters.recipientEmail);
+      }
+      // If searching by publisher (organization certificates)
+      else if (filters.publisherId) {
+        // Verify user can access certificates for this publisher
+        const canAccess = context.ownedOrganizations.some(org => org.id === filters.publisherId) ||
+                         context.organizationMemberships.some(m => m.organization_id === filters.publisherId);
+        
+        if (!canAccess) {
+          throw new Error('Access denied');
+        }
+        
+        query = query.eq('publisher_id', filters.publisherId);
+      }
+      // If no filters provided, return empty array
+      else {
+        return [];
+      }
 
       if (filters.templateId) {
         query = query.eq('template_id', filters.templateId);
