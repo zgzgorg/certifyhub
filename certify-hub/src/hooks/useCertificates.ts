@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { certificateService } from '@/services/certificateService';
 import type { Certificate } from '@/types/certificate';
-import { createSecurityContext } from '@/utils/auth';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface UseCertificatesOptions {
@@ -22,22 +21,19 @@ interface UseCertificatesReturn {
 
 export function useCertificates(options: UseCertificatesOptions): UseCertificatesReturn {
   const { publisherId, templateId, status, autoFetch = true } = options;
-  const { user, organization } = useAuth();
+  const { user, organization, organizationMembers } = useAuth();
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const securityContext = useMemo(() => {
-    const context = createSecurityContext(user);
-    // Add organization ID from AuthContext for proper authorization
-    if (organization) {
-      return {
-        ...context,
-        organizationId: organization.id
-      };
-    }
-    return context;
-  }, [user, organization]);
+    return {
+      user,
+      isAuthenticated: !!user,
+      organizationMemberships: organizationMembers || [],
+      ownedOrganizations: organization ? [{ id: organization.id, name: organization.name }] : []
+    };
+  }, [user, organization, organizationMembers]);
 
   const filters = useMemo(() => ({
     publisherId,

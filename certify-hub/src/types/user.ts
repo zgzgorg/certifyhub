@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   email: string;
+  name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -14,18 +15,21 @@ export interface Organization {
   contact_person: string;
   contact_phone?: string;
   status: 'pending' | 'approved' | 'rejected';
+  owner_id: string;
+  created_by: string;
   created_at: string;
   updated_at: string;
-  user_id: string;
 }
 
-export interface RegularUser {
+export interface OrganizationMember {
   id: string;
-  email: string;
-  name: string;
+  organization_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member';
+  invited_by?: string;
+  joined_at: string;
   created_at: string;
   updated_at: string;
-  user_id: string;
 }
 
-export type UserRole = 'organization' | 'regular' | 'admin'; 
+export type UserRole = 'owner' | 'admin' | 'member'; 

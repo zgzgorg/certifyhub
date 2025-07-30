@@ -3,8 +3,6 @@ import { supabase } from '@/lib/supabaseClient';
 import { authRateLimiter } from './validation';
 
 export interface AuthUser extends User {
-  role?: 'organization' | 'regular' | 'admin';
-  organizationId?: string;
   userId?: string;
 }
 
@@ -14,41 +12,52 @@ export interface AuthUser extends User {
 export interface SecurityContext {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  isOrganization: boolean;
-  isRegularUser: boolean;
-  isAdmin: boolean;
-  organizationId?: string;
+  organizationMemberships: Array<{
+    id: string;
+    organization_id: string;
+    role: 'owner' | 'admin' | 'member';
+  }>;
+  ownedOrganizations: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
 /**
- * Create security context from user
+ * Create security context from user (async version needed for memberships)
  */
-export const createSecurityContext = (user: User | null): SecurityContext => {
+export const createSecurityContext = async (user: User | null): Promise<SecurityContext> => {
   if (!user) {
     return {
       user: null,
       isAuthenticated: false,
-      isOrganization: false,
-      isRegularUser: false,
-      isAdmin: false
+      organizationMemberships: [],
+      ownedOrganizations: []
     };
   }
 
-  const role = user.user_metadata?.role;
   const authUser: AuthUser = {
     ...user,
-    role,
-    organizationId: user.user_metadata?.organization_id,
     userId: user.id
   };
+
+  // Fetch user's organization memberships
+  const { data: memberships } = await supabase
+    .from('organization_members')
+    .select('id, organization_id, role')
+    .eq('user_id', user.id);
+
+  // Fetch user's owned organizations
+  const { data: ownedOrgs } = await supabase
+    .from('organizations')
+    .select('id, name')
+    .eq('owner_id', user.id);
 
   return {
     user: authUser,
     isAuthenticated: true,
-    isOrganization: role === 'organization',
-    isRegularUser: role === 'regular',
-    isAdmin: role === 'admin',
-    organizationId: authUser.organizationId
+    organizationMemberships: memberships || [],
+    ownedOrganizations: ownedOrgs || []
   };
 };
 
@@ -61,17 +70,17 @@ export const canAccessCertificate = (
 ): boolean => {
   if (!context.isAuthenticated) return false;
   
-  // Admin can access all certificates
-  if (context.isAdmin) return true;
+  // Check if user owns the organization that published the certificate
+  const ownsPublisher = context.ownedOrganizations.some(org => org.id === certificate.publisher_id);
+  if (ownsPublisher) return true;
   
-  // Organization can access their own certificates
-  // The certificate.publisher_id is the organization ID, not the user ID
-  if (context.isOrganization && context.organizationId === certificate.publisher_id) {
-    return true;
-  }
+  // Check if user is admin/member of the organization that published the certificate
+  const isMemberOf = context.organizationMemberships.some(
+    membership => membership.organization_id === certificate.publisher_id && 
+    (membership.role === 'admin' || membership.role === 'member')
+  );
   
-  // Regular users cannot access certificates in this context
-  return false;
+  return isMemberOf;
 };
 
 /**
@@ -83,16 +92,17 @@ export const canModifyCertificate = (
 ): boolean => {
   if (!context.isAuthenticated) return false;
   
-  // Admin can modify all certificates
-  if (context.isAdmin) return true;
+  // Check if user owns the organization that published the certificate
+  const ownsPublisher = context.ownedOrganizations.some(org => org.id === certificate.publisher_id);
+  if (ownsPublisher) return true;
   
-  // Organization can modify their own certificates
-  // The certificate.publisher_id is the organization ID, not the user ID
-  if (context.isOrganization && context.organizationId === certificate.publisher_id) {
-    return true;
-  }
+  // Check if user is admin of the organization that published the certificate
+  const isAdminOf = context.organizationMemberships.some(
+    membership => membership.organization_id === certificate.publisher_id && 
+    membership.role === 'admin'
+  );
   
-  return false;
+  return isAdminOf;
 };
 
 /**
@@ -104,16 +114,16 @@ export const canAccessOrganization = (
 ): boolean => {
   if (!context.isAuthenticated) return false;
   
-  // Admin can access all organizations
-  if (context.isAdmin) return true;
+  // Check if user owns the organization
+  const ownsOrg = context.ownedOrganizations.some(org => org.id === organizationId);
+  if (ownsOrg) return true;
   
-  // Organization can access their own data
-  // organizationId parameter is the organization ID, context.organizationId is also organization ID
-  if (context.isOrganization && context.organizationId === organizationId) {
-    return true;
-  }
+  // Check if user is member of the organization
+  const isMemberOf = context.organizationMemberships.some(
+    membership => membership.organization_id === organizationId
+  );
   
-  return false;
+  return isMemberOf;
 };
 
 /**
@@ -122,8 +132,9 @@ export const canAccessOrganization = (
 export const canCreateCertificates = (context: SecurityContext): boolean => {
   if (!context.isAuthenticated) return false;
   
-  // Only organizations and admins can create certificates
-  return context.isOrganization || context.isAdmin;
+  // Users who own organizations or are admin/member of organizations can create certificates
+  return context.ownedOrganizations.length > 0 || 
+         context.organizationMemberships.some(m => m.role === 'admin' || m.role === 'owner');
 };
 
 /**
@@ -134,9 +145,6 @@ export const canAccessTemplates = (
   templateUserId?: string
 ): boolean => {
   if (!context.isAuthenticated) return false;
-  
-  // Admin can access all templates
-  if (context.isAdmin) return true;
   
   // Users can access public templates or their own templates
   return !templateUserId || context.user?.id === templateUserId;

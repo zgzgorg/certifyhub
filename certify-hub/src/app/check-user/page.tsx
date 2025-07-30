@@ -19,35 +19,52 @@ export default function CheckUserPage() {
     setMessage('');
 
     try {
-      // Try to query user information from database
-      const { data: orgData, error: orgError } = await supabase
+      // Check if user exists in auth system
+      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+      const authUser = authUsers?.users?.find(u => u.email === email);
+
+      if (!authUser) {
+        setMessage('No user found with this email');
+        setUserInfo(null);
+        return;
+      }
+
+      // Check if user has any organization memberships
+      const { data: memberships, error: membershipError } = await supabase
+        .from('organization_members')
+        .select(`
+          *,
+          organizations (*)
+        `)
+        .eq('user_id', authUser.id);
+
+      // Check if user owns any organizations
+      const { data: ownedOrgs, error: orgError } = await supabase
         .from('organizations')
         .select('*')
-        .eq('email', email)
-        .single();
+        .eq('owner_id', authUser.id);
 
-      const { data: userData, error: userError } = await supabase
-        .from('regular_users')
-        .select('*')
-        .eq('email', email)
-        .single();
+      const userInfo: any = {
+        type: 'user',
+        data: {
+          id: authUser.id,
+          email: authUser.email,
+          name: authUser.user_metadata?.name || 'Unknown',
+          created_at: authUser.created_at,
+          email_confirmed: authUser.email_confirmed_at ? 'Yes' : 'No'
+        },
+        memberships: memberships || [],
+        ownedOrganizations: ownedOrgs || []
+      };
 
-      if (orgData) {
-        setUserInfo({
-          type: 'organization',
-          data: orgData,
-          emailConfirmed: orgData.user_id ? 'Yes' : 'No'
-        });
-        setMessage('Organization user found');
-      } else if (userData) {
-        setUserInfo({
-          type: 'regular_user',
-          data: userData,
-          emailConfirmed: userData.user_id ? 'Yes' : 'No'
-        });
-        setMessage('Regular user found');
+      setUserInfo(userInfo);
+      
+      if (ownedOrgs && ownedOrgs.length > 0) {
+        setMessage(`User found - owns ${ownedOrgs.length} organization(s)`);
+      } else if (memberships && memberships.length > 0) {
+        setMessage(`User found - member of ${memberships.length} organization(s)`);
       } else {
-        setMessage('No user found with this email');
+        setMessage('User found - no organization affiliations');
       }
     } catch (error) {
       console.error('Error checking user:', error);
@@ -134,22 +151,38 @@ export default function CheckUserPage() {
             <div className="space-y-2">
               <p><strong>Type:</strong> {userInfo.type}</p>
               <p><strong>Email:</strong> {userInfo.data.email}</p>
-              <p><strong>User ID:</strong> {userInfo.data.user_id || 'Not set'}</p>
-              <p><strong>Email Confirmed:</strong> {userInfo.emailConfirmed}</p>
+              <p><strong>User ID:</strong> {userInfo.data.id}</p>
+              <p><strong>Name:</strong> {userInfo.data.name}</p>
+              <p><strong>Email Confirmed:</strong> {userInfo.data.email_confirmed}</p>
               <p><strong>Created:</strong> {new Date(userInfo.data.created_at).toLocaleString()}</p>
-              
-              {userInfo.type === 'organization' && (
-                <>
-                  <p><strong>Name:</strong> {userInfo.data.name}</p>
-                  <p><strong>Status:</strong> {userInfo.data.status}</p>
-                  <p><strong>Contact Person:</strong> {userInfo.data.contact_person}</p>
-                </>
-              )}
-              
-              {userInfo.type === 'regular_user' && (
-                <p><strong>Name:</strong> {userInfo.data.name}</p>
-              )}
             </div>
+
+            {userInfo.ownedOrganizations && userInfo.ownedOrganizations.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-3">Owned Organizations</h3>
+                {userInfo.ownedOrganizations.map((org: any) => (
+                  <div key={org.id} className="border rounded-lg p-4 mb-3">
+                    <p><strong>Name:</strong> {org.name}</p>
+                    <p><strong>Status:</strong> {org.status}</p>
+                    <p><strong>Contact Person:</strong> {org.contact_person}</p>
+                    <p><strong>Description:</strong> {org.description || 'None'}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {userInfo.memberships && userInfo.memberships.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-3">Organization Memberships</h3>
+                {userInfo.memberships.map((membership: any) => (
+                  <div key={membership.id} className="border rounded-lg p-4 mb-3">
+                    <p><strong>Organization:</strong> {membership.organizations?.name}</p>
+                    <p><strong>Role:</strong> {membership.role}</p>
+                    <p><strong>Joined:</strong> {new Date(membership.joined_at).toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

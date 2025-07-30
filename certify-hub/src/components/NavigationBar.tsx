@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { UI_TEXT } from '@/constants/messages';
 
 export default function NavigationBar() {
-  const { user, organization, regularUser, signOut } = useAuth();
+  const { user, organization, organizationMembers, signOut } = useAuth();
   const pathname = usePathname();
 
   // Check if current page matches
@@ -87,9 +87,9 @@ export default function NavigationBar() {
                   </span>
                 </div>
               )}
-              {regularUser && (
+              {!organization && user && (
                 <span className="text-sm text-gray-600">
-                  {regularUser.name}
+                  {user.user_metadata?.name || user.email}
                 </span>
               )}
               <button

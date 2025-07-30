@@ -56,7 +56,7 @@ function ErrorBoundary({ error, retry }: { error: string; retry: () => void }) {
 }
 
 export default function DashboardPage() {
-  const { user, organization, regularUser, loading, error, retry } = useAuth();
+  const { user, organization, organizationMembers, loading, error, retry } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm text-gray-600">Account Type</p>
                 <p className="font-medium">
-                  {organization ? 'Organization' : regularUser ? 'Regular User' : 'User'}
+                  {organization ? 'Organization' : 'User'}
                 </p>
               </div>
               {organization && (
@@ -223,8 +223,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Regular User Details */}
-        {regularUser && (
+        {/* User Details */}
+        {!organization && user && (
           <div className="mt-8 bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               User Details
@@ -232,14 +232,27 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <p className="text-sm text-gray-600">Full Name</p>
-                <p className="font-medium">{regularUser.name}</p>
+                <p className="font-medium">{user.user_metadata?.name || user.email}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Member Since</p>
                 <p className="font-medium">
-                  {new Date(regularUser.created_at).toLocaleDateString()}
+                  {new Date(user.created_at).toLocaleDateString()}
                 </p>
               </div>
+              {organizationMembers && organizationMembers.length > 0 && (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-600">Organization Memberships</p>
+                  <div className="mt-2 space-y-1">
+                    {organizationMembers.map((membership: any) => (
+                      <div key={membership.id} className="text-sm bg-gray-50 p-2 rounded">
+                        <span className="font-medium">{membership.organizations?.name}</span>
+                        <span className="text-gray-600 ml-2">({membership.role})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -3,13 +3,13 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase, signOutSafely } from '../lib/supabaseClient';
-import { Organization, RegularUser } from '../types/user';
+import { Organization, OrganizationMember } from '../types/user';
 import { debug } from '../utils/debug';
 
 interface AuthContextType {
   user: User | null;
   organization: Organization | null;
-  regularUser: RegularUser | null;
+  organizationMembers: OrganizationMember[];
   loading: boolean;
   error: string | null;
   signOut: () => Promise<void>;
@@ -44,13 +44,14 @@ function debounce<T extends (...args: any[]) => any>(
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
-  const [regularUser, setRegularUser] = useState<RegularUser | null>(null);
+  const [organizationMembers, setOrganizationMembers] = useState<OrganizationMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // Simplified refs for race condition prevention
   const isFetchingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const debouncedFetchUserDataRef = useRef<((userId: string) => void) & { cancel: () => void } | null>(null);
 
   const resetAuthState = useCallback(() => {
     debug.auth('Resetting auth state...');
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     setUser(null);
     setOrganization(null);
-    setRegularUser(null);
+    setOrganizationMembers([]);
     setLoading(false);
     setError(null);
     isFetchingRef.current = false;
@@ -105,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!session?.user) {
         debug.warn('No active session found');
         setOrganization(null);
-        setRegularUser(null);
+        setOrganizationMembers([]);
         return;
       }
       
@@ -118,112 +119,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (signal.aborted) return;
       
       const user = session.user;
-      const userRole = user?.user_metadata?.role;
       
-      debug.auth(`User role: ${userRole}`);
+      debug.auth(`User authenticated: ${user.id.substring(0, 8)}...`);
 
-      // Fetch additional user data based on role
-      if (userRole === 'organization') {
-        debug.auth('Fetching organization data...');
-        
-        const { data: orgData, error: orgError } = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('user_id', userId)
-          .abortSignal(signal)
-          .single();
-        
-        if (signal.aborted) return;
-        
-        if (orgError && orgError.code !== 'PGRST116') {
-          debug.warn('Organization data fetch error:', orgError.message);
-        }
-        
-        setOrganization(orgData || null);
-        setRegularUser(null);
-      } else if (userRole === 'regular') {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('👤 Fetching regular user data...');
-        }
-        
-        const { data: userData, error: userError } = await supabase
-          .from('regular_users')
-          .select('*')
-          .eq('user_id', userId)
-          .abortSignal(signal)
-          .single();
-        
-        if (signal.aborted) return;
-        
-        if (userError && userError.code !== 'PGRST116') {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('⚠️ Regular user data fetch error:', userError.message);
-          }
-        }
-        
-        setRegularUser(userData || null);
-        setOrganization(null);
-      } else {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('👤 Basic user without additional profile');
-        }
-        setOrganization(null);
-        setRegularUser(null);
+      // Fetch user's organization memberships
+      debug.auth('Fetching organization memberships...');
+      
+      const { data: memberships, error: membershipsError } = await supabase
+        .from('organization_members')
+        .select(`
+          *,
+          organizations (*)
+        `)
+        .eq('user_id', userId)
+        .abortSignal(signal);
+      
+      if (signal.aborted) return;
+      
+      if (membershipsError) {
+        debug.warn('Organization memberships fetch error:', membershipsError.message);
       }
       
-      if (process.env.NODE_ENV === 'development') {
-        console.log('✅ fetchUserData completed successfully');
+      // Also fetch organizations owned by this user
+      const { data: ownedOrgs, error: ownedOrgsError } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('owner_id', userId)
+        .abortSignal(signal);
+        
+      if (signal.aborted) return;
+      
+      if (ownedOrgsError) {
+        debug.warn('Owned organizations fetch error:', ownedOrgsError.message);
       }
+      
+      setOrganizationMembers(memberships || []);
+      
+      // Set primary organization (first owned org, or first membership org, or null)
+      const primaryOrg = ownedOrgs?.[0] || memberships?.[0]?.organizations || null;
+      setOrganization(primaryOrg);
+      
+      debug.auth(`Found ${memberships?.length || 0} organization memberships and ${ownedOrgs?.length || 0} owned organizations`);
       
     } catch (error: unknown) {
-      if (signal.aborted) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('🚫 Request was aborted');
-        }
-        return;
-      }
+      if (signal.aborted) return;
       
-      if (process.env.NODE_ENV === 'development') {
-        console.error('❌ Error fetching user data:', error instanceof Error ? error.message : 'Unknown error');
-      }
-      
+      debug.error('fetchUserData error:', error instanceof Error ? error.message : 'Unknown error');
       setError('Failed to load user data');
-      setOrganization(null);
-      setRegularUser(null);
     } finally {
-      if (!signal.aborted) {
-        setLoading(false);
-        isFetchingRef.current = false;
-        abortControllerRef.current = null;
-      }
+      isFetchingRef.current = false;
+      setLoading(false);
     }
   }, []);
 
-  // Debounced version to prevent rapid successive calls
-  const debouncedFetchUserData = useCallback(
-    debounce((userId: string) => fetchUserData(userId), 300),
-    [fetchUserData]
-  );
-
   useEffect(() => {
     let isMounted = true;
+    const debouncedFetchUserData = debounce(fetchUserData, 300);
+    debouncedFetchUserDataRef.current = debouncedFetchUserData;
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🚀 AuthProvider useEffect started');
-    }
+    debug.auth('AuthProvider useEffect started');
     
     const initializeAuth = async () => {
       try {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('🔍 Getting initial user session...');
-        }
+        debug.auth('Getting initial user session...');
         
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('❌ Session error:', error.message);
-          }
+          debug.error('Session error:', error.message);
           throw error;
         }
         
@@ -231,27 +194,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         const user = session?.user || null;
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('👤 Initial user:', user ? `${user.id.substring(0, 8)}...` : 'null');
-        }
+        debug.auth(`Initial user: ${user ? `${user.id.substring(0, 8)}...` : 'null'}`);
         
         setUser(user);
         
         if (user) {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('🔄 Fetching user data for initial user...');
-          }
+          debug.auth('Fetching user data for initial user...');
           await debouncedFetchUserData(user.id);
         } else {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('👤 No initial user, setting loading to false');
-          }
+          debug.auth('No initial user, setting loading to false');
           setLoading(false);
         }
       } catch (error: unknown) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('❌ Error getting user:', error instanceof Error ? error.message : 'Unknown error');
-        }
+        debug.error('Error getting user:', error instanceof Error ? error.message : 'Unknown error');
         if (isMounted) {
           setError('Failed to load user');
           setLoading(false);
@@ -261,57 +216,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initializeAuth();
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('👂 Setting up auth state change listener...');
-    }
+    debug.auth('Setting up auth state change listener...');
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMounted) return;
         
-        if (process.env.NODE_ENV === 'development') {
-          console.log('🔄 Auth state change:', event, session?.user ? `${session.user.id.substring(0, 8)}...` : 'null');
-        }
+        debug.auth(`Auth state change: ${event}, ${session?.user ? `${session.user.id.substring(0, 8)}...` : 'null'}`);
         
         // Skip initial session to avoid duplicate data fetching
         if (event === 'INITIAL_SESSION') {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('⚠️ Skipping INITIAL_SESSION');
-          }
+          debug.auth('Skipping INITIAL_SESSION');
           return;
         }
         
         setUser(session?.user ?? null);
         
         if (session?.user && event !== 'TOKEN_REFRESHED') {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('🔄 Fetching user data after auth state change...');
-          }
+          debug.auth('Fetching user data after auth state change...');
           debouncedFetchUserData(session.user.id);
         } else if (!session?.user) {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('👤 No session user, clearing user data...');
-          }
-          resetAuthState();
+          debug.auth('No session user, clearing user data...');
+          // Clear state directly instead of calling resetAuthState
+          setUser(null);
+          setOrganization(null);
+          setOrganizationMembers([]);
+          setLoading(false);
+          setError(null);
         }
       }
     );
 
     return () => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🧹 Cleaning up AuthProvider useEffect');
-      }
+      debug.auth('Cleaning up AuthProvider useEffect');
       isMounted = false;
       subscription.unsubscribe();
       debouncedFetchUserData.cancel();
-      resetAuthState();
+      debouncedFetchUserDataRef.current = null;
+      // Clear state directly instead of calling resetAuthState
+      setUser(null);
+      setOrganization(null);
+      setOrganizationMembers([]);
+      setLoading(false);
+      setError(null);
     };
-  }, [debouncedFetchUserData, resetAuthState]);
+  }, [fetchUserData]);
 
   const retry = useCallback(async () => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔄 Retry function called');
-    }
+    debug.auth('Retry function called');
     if (user) {
       setLoading(true);
       setError(null);
@@ -323,7 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     debug.auth('Sign out function called');
     
     try {
-      debouncedFetchUserData.cancel();
+      debouncedFetchUserDataRef.current?.cancel();
       
       // Use the safer sign out method
       const result = await signOutSafely();
@@ -341,12 +293,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Always clear local state regardless of server response
       resetAuthState();
     }
-  }, [debouncedFetchUserData, resetAuthState]);
+  }, []);
 
   const value = {
     user,
     organization,
-    regularUser,
+    organizationMembers,
     loading,
     error,
     signOut,

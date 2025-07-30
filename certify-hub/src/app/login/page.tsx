@@ -17,22 +17,14 @@ export default function LoginPage() {
         <div className="mt-8 pt-6 border-t border-gray-200">
           <div className="text-center">
             <p className="text-sm text-gray-600 mb-4">
-              Don&apos;t have an account? Choose your registration type:
+              Don&apos;t have an account?
             </p>
-            <div className="space-y-3">
-              <a
-                href="/register/organization"
-                className="block w-full bg-green-600 text-white py-2 px-4 rounded-md font-medium hover:bg-green-700 transition"
-              >
-                Register as Organization
-              </a>
-              <a
-                href="/register/user"
-                className="block w-full bg-blue-600 text-white py-2 px-4 rounded-md font-medium hover:bg-blue-700 transition"
-              >
-                Register as User
-              </a>
-            </div>
+            <a
+              href="/register"
+              className="block w-full bg-blue-600 text-white py-2 px-4 rounded-md font-medium hover:bg-blue-700 transition"
+            >
+              Create Account
+            </a>
           </div>
         </div>
       </div>

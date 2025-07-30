@@ -58,15 +58,11 @@ export class CertificateService {
   ): Promise<Certificate[]> {
     return secureQuery(context, async () => {
       // Verify user can access certificates for this publisher
-      // For organizations: user's auth ID should match the organization's user_id
-      // The publisherId in filters is the organization.id, but we need to check 
-      // if the authenticated user owns this organization
-      if (!context.isAdmin && !context.isOrganization) {
-        throw new Error('Access denied');
-      }
+      // Check if user owns the organization or is a member of the organization
+      const canAccess = context.ownedOrganizations.some(org => org.id === filters.publisherId) ||
+                       context.organizationMemberships.some(m => m.organization_id === filters.publisherId);
       
-      // For organizations, the publisherId should match their organization ID
-      if (context.isOrganization && context.organizationId !== filters.publisherId) {
+      if (!canAccess) {
         throw new Error('Access denied');
       }
 
