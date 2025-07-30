@@ -1,22 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CertifyHub
+
+A modern certificate generation and management platform built with Next.js, Supabase, and TypeScript.
 
 ## Getting Started
 
-First, run the development server:
+### 1. Environment Variables
+Create a `.env.local` file with your Supabase credentials:
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
+### 2. Database Setup
+Run the database initialization script in your Supabase SQL Editor:
+```sql
+-- Copy and paste the contents of init-database.sql
+```
+
+### 3. Install and Run
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Features
+
+- **Organization Management**: Create and manage organizations with approval workflow
+- **Certificate Generation**: Generate certificates with customizable templates
+- **User Authentication**: Secure login and registration system
+- **Role-based Access**: Owner, Admin, and Member roles
+- **Email Notifications**: Automated email notifications for certificates
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

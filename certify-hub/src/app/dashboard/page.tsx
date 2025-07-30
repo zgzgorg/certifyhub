@@ -155,9 +155,17 @@ export default function DashboardPage() {
             <div className="space-y-3">
               <Link
                 href="/certificate/generate"
-                className="block w-full bg-blue-600 text-white py-2 px-4 rounded-md text-center hover:bg-blue-700 transition"
+                className="flex items-center justify-between w-full p-3 text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 transition border border-gray-200"
               >
-                Generate Certificate
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="font-medium">Generate Certificate</span>
+                </div>
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </Link>
               
               {/* Show organization features for owners/admins of approved organizations */}
@@ -167,24 +175,48 @@ export default function DashboardPage() {
                 <>
                   <Link
                     href="/certificate/templates"
-                    className="block w-full bg-green-600 text-white py-2 px-4 rounded-md text-center hover:bg-green-700 transition"
+                    className="flex items-center justify-between w-full p-3 text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 transition border border-gray-200"
                   >
-                    Manage Templates
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                      <span className="font-medium">Manage Templates</span>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </Link>
                   <Link
-                    href="/organization/manage"
-                    className="block w-full bg-purple-600 text-white py-2 px-4 rounded-md text-center hover:bg-purple-700 transition"
+                    href="/organizations"
+                    className="flex items-center justify-between w-full p-3 text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 transition border border-gray-200"
                   >
-                    Manage Organization
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 mr-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      <span className="font-medium">Manage Organizations</span>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </Link>
                 </>
               )}
               
               <Link
-                href="/certificate/history"
-                className="block w-full bg-gray-600 text-white py-2 px-4 rounded-md text-center hover:bg-gray-700 transition"
+                href="/certificates"
+                className="flex items-center justify-between w-full p-3 text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 transition border border-gray-200"
               >
-                View History
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 mr-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <span className="font-medium">View Certificates</span>
+                </div>
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </Link>
             </div>
           </div>

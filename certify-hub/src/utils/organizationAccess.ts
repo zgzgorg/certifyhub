@@ -4,7 +4,7 @@ import { Organization, OrganizationMember } from '../types/user';
 export interface OrganizationAccessOptions {
   user: User | null;
   organization: Organization | null;
-  organizationMembers: OrganizationMember[];
+  organizationMembers: (OrganizationMember & { organizations?: Organization })[];
 }
 
 /**
@@ -88,7 +88,7 @@ export function isOrganizationAdminOrOwner({ user, organization, organizationMem
 export function getUserOrganizations({ user, organization, organizationMembers }: OrganizationAccessOptions) {
   if (!user) return [];
 
-  const orgs = [];
+  const orgs: Array<Organization & { userRole: string }> = [];
   
   // Add primary organization if exists
   if (organization) {
@@ -119,7 +119,7 @@ export function getUserOrganizations({ user, organization, organizationMembers }
   
   // Add organizations from memberships (avoid duplicates)
   organizationMembers.forEach((membership: any) => {
-    const org = membership.organizations;
+    const org = (membership as any).organizations;
     if (org && !orgs.find(o => o.id === org.id)) {
       orgs.push({
         ...org,
