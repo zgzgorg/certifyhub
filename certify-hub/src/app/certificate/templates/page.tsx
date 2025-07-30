@@ -17,6 +17,7 @@ export default function TemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
   const [editingMetadata, setEditingMetadata] = useState<TemplateMetadata | null>(null);
+  const [updatingVisibility, setUpdatingVisibility] = useState<string | null>(null);
   const hasFetched = useRef(false);
 
   // Use the updated useTemplates hook with identity - only show owned templates
@@ -113,6 +114,38 @@ export default function TemplatesPage() {
     setEditingMetadata(null);
   }, []);
 
+  const handleToggleVisibility = useCallback(async (templateId: string, isPublic: boolean) => {
+    try {
+      setUpdatingVisibility(templateId);
+      
+      const { error } = await supabase
+        .from('templates')
+        .update({ is_public: isPublic })
+        .eq('id', templateId);
+      
+      if (error) throw error;
+      
+      // Show success message
+      const template = templates.find(t => t.id === templateId);
+      if (template) {
+        alert(`Template "${template.name}" is now ${isPublic ? 'public' : 'private'}`);
+      }
+      
+      // Refetch templates to update the UI
+      await refetch();
+      
+      // Force a page refresh after a short delay to ensure all changes are reflected
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error) {
+      console.error('Error updating template visibility:', error);
+      alert('Failed to update template visibility');
+    } finally {
+      setUpdatingVisibility(null);
+    }
+  }, [refetch, templates]);
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -148,7 +181,7 @@ export default function TemplatesPage() {
               )}
             </p>
             <p className="mt-1 text-sm text-gray-500">
-              Only showing templates you own
+              Only showing templates you own. Public templates can be used by others, private templates are only visible to you.
             </p>
           </div>
           <button
@@ -198,6 +231,8 @@ export default function TemplatesPage() {
                 template={template}
                 onDelete={handleTemplateDeleted}
                 onManageMetadata={handleManageMetadata}
+                onToggleVisibility={handleToggleVisibility}
+                isUpdatingVisibility={updatingVisibility === template.id}
               />
             ))}
           </div>

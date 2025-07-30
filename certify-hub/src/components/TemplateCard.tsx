@@ -7,9 +7,11 @@ interface TemplateCardProps {
   template: Template;
   onDelete: (templateId: string) => void;
   onManageMetadata: (template: Template) => void;
+  onToggleVisibility?: (templateId: string, isPublic: boolean) => void;
+  isUpdatingVisibility?: boolean;
 }
 
-function TemplateCard({ template, onDelete, onManageMetadata }: TemplateCardProps) {
+function TemplateCard({ template, onDelete, onManageMetadata, onToggleVisibility, isUpdatingVisibility }: TemplateCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -69,6 +71,12 @@ function TemplateCard({ template, onDelete, onManageMetadata }: TemplateCardProp
   const handleManageMetadata = useCallback(() => {
     onManageMetadata(template);
   }, [template, onManageMetadata]);
+
+  const handleToggleVisibility = useCallback(() => {
+    if (onToggleVisibility) {
+      onToggleVisibility(template.id, !template.is_public);
+    }
+  }, [template.id, template.is_public, onToggleVisibility]);
 
   const handleImageError = useCallback(() => {
     setImageError(true);
@@ -180,6 +188,27 @@ function TemplateCard({ template, onDelete, onManageMetadata }: TemplateCardProp
           >
             Manage Metadata
           </button>
+          {onToggleVisibility && (
+            <button
+              onClick={handleToggleVisibility}
+              disabled={isUpdatingVisibility}
+              className={`flex-1 text-sm py-2 px-3 rounded-md transition-colors ${
+                template.is_public
+                  ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              } ${isUpdatingVisibility ? 'opacity-50 cursor-not-allowed' : ''}`}
+              title={template.is_public ? 'Make this template private (only you can see it)' : 'Make this template public (others can see and use it)'}
+            >
+              {isUpdatingVisibility ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Updating...
+                </div>
+              ) : (
+                template.is_public ? 'Make Private' : 'Make Public'
+              )}
+            </button>
+          )}
         </div>
 
         <div className="mt-4 pt-4 border-t border-gray-200">
