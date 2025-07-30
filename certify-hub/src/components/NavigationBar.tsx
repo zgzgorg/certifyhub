@@ -78,16 +78,7 @@ export default function NavigationBar() {
               >
                 Dashboard
               </Link>
-              <Link 
-                href="/organizations" 
-                className={`font-medium transition-colors ${
-                  isActive('/organizations') 
-                    ? 'text-blue-700 border-b-2 border-blue-700' 
-                    : 'text-gray-700 hover:text-blue-700'
-                }`}
-              >
-                Organizations
-              </Link>
+
               <IdentitySelector />
               <button
                 onClick={signOut}

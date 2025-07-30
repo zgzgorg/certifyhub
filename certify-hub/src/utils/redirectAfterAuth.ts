@@ -25,6 +25,6 @@ export function redirectAfterAuth(router: AppRouterInstance, delay: number = 500
  * This prevents redirects when user is already on dashboard or other protected pages
  */
 export function shouldRedirectAfterAuth(pathname: string): boolean {
-  const protectedPaths = ['/dashboard', '/certificates', '/certificate', '/organizations'];
+  const protectedPaths = ['/dashboard', '/certificates', '/certificate'];
   return !protectedPaths.some(path => pathname.startsWith(path));
 }
