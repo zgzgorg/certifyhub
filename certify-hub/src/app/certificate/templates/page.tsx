@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIdentity } from '@/contexts/IdentityContext';
@@ -9,6 +10,13 @@ import TemplateUploadModal from '@/components/TemplateUploadModal';
 import TemplateCard from '@/components/TemplateCard';
 import { TemplateMetadataEditor } from '@/components/TemplateMetadataEditor';
 import { Template, TemplateMetadata } from '@/types/template';
+import { 
+  Box, 
+  Typography, 
+  Card, 
+  CardContent, 
+  Button 
+} from '@mui/material';
 
 export default function TemplatesPage() {
   const { user } = useAuth();
@@ -148,11 +156,33 @@ export default function TemplatesPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Please login to access templates</h1>
-        </div>
-      </div>
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Card>
+          <CardContent sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="h4" component="h1" gutterBottom>
+              Certificate Templates
+            </Typography>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              Login to manage your templates
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Sign in to upload and manage your certificate templates.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+              <Link href="/login" style={{ textDecoration: 'none' }}>
+                <Button variant="contained" color="primary">
+                  Sign In
+                </Button>
+              </Link>
+              <Link href="/register" style={{ textDecoration: 'none' }}>
+                <Button variant="outlined" color="primary">
+                  Register
+                </Button>
+              </Link>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
     );
   }
 

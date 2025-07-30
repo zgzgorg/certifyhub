@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabaseClient';
 import { getOAuthCallbackUrl, validateOAuthEnvironment } from '../utils/oauthRedirect';
 
-export default function GoogleLoginButton() {
+interface GoogleLoginButtonProps {
+  mode?: 'login' | 'register';
+}
+
+export default function GoogleLoginButton({ mode = 'login' }: GoogleLoginButtonProps) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const router = useRouter();
@@ -79,6 +83,9 @@ export default function GoogleLoginButton() {
     }
   };
 
+  const buttonText = mode === 'register' ? 'Sign up with Google' : 'Continue with Google';
+  const loadingText = mode === 'register' ? 'Signing up with Google...' : 'Signing in with Google...';
+
   return (
     <div className="space-y-4">
       <button
@@ -90,7 +97,7 @@ export default function GoogleLoginButton() {
         {loading ? (
           <>
             <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
-            <span>Signing in with Google...</span>
+            <span>{loadingText}</span>
           </>
         ) : (
           <>
@@ -112,7 +119,7 @@ export default function GoogleLoginButton() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            <span>Continue with Google</span>
+            <span>{buttonText}</span>
           </>
         )}
       </button>
