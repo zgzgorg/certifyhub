@@ -55,27 +55,6 @@ export default function OrganizationsPage() {
       
       console.log('Fetching organizations for user:', user.id);
       
-      // Get current session for debugging
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      console.log('Current session:', { session: !!session, error: sessionError });
-      
-      // Check if tables exist by trying to get table info
-      const { data: tableInfo, error: tableError } = await supabase
-        .from('information_schema.tables')
-        .select('table_name')
-        .eq('table_schema', 'public')
-        .in('table_name', ['organizations', 'organization_members']);
-      
-      console.log('Table check result:', { tableInfo, tableError });
-      
-      // First, let's test if we can access the organizations table at all
-      const { data: testData, error: testError } = await supabase
-        .from('organizations')
-        .select('count')
-        .limit(1);
-      
-      console.log('Test query result:', { testData, testError });
-      
       // Fetch organizations where user is owner
       const { data: ownedOrgs, error: ownedError } = await supabase
         .from('organizations')
@@ -85,8 +64,6 @@ export default function OrganizationsPage() {
 
       if (ownedError) {
         console.error('Error fetching owned organizations:', ownedError);
-      } else {
-        console.log('Owned organizations:', ownedOrgs);
       }
 
       // Fetch organizations where user is a member
@@ -101,8 +78,6 @@ export default function OrganizationsPage() {
 
       if (memberError) {
         console.error('Error fetching member organizations:', memberError);
-      } else {
-        console.log('Member organizations:', memberOrgs);
       }
 
       // Combine and format organizations
@@ -132,25 +107,8 @@ export default function OrganizationsPage() {
       }
 
       setOrganizations(allOrgs);
-      setDebugInfo({
-        session: !!session,
-        sessionError,
-        tableInfo,
-        tableError,
-        testData,
-        testError,
-        ownedOrgs,
-        ownedError,
-        memberOrgs,
-        memberError,
-        user: {
-          id: user.id,
-          email: user.email
-        }
-      });
     } catch (error) {
       console.error('Error fetching organizations:', error);
-      setDebugInfo({ error: error });
     } finally {
       setLoading(false);
     }
