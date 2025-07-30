@@ -33,8 +33,9 @@ export default function CertificateGeneratePage() {
     templates,
     loading: templatesLoading,
     refetch: refetchTemplates,
-  } = useDatabaseTemplates({
-    identity: currentIdentity || undefined
+  } = useDatabaseTemplates({ // Modified hook call
+    identity: currentIdentity || undefined,
+    includePublic: true // Include public templates for certificate generation
   });
 
   // Template metadata hook

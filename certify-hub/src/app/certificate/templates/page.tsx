@@ -19,9 +19,10 @@ export default function TemplatesPage() {
   const [editingMetadata, setEditingMetadata] = useState<TemplateMetadata | null>(null);
   const hasFetched = useRef(false);
 
-  // Use the updated useTemplates hook with identity
+  // Use the updated useTemplates hook with identity - only show owned templates
   const { templates, loading, error, refetch } = useTemplates({
     identity: currentIdentity || undefined,
+    includePublic: false, // Only show templates owned by current identity
     autoFetch: !!currentIdentity
   });
 
@@ -140,6 +141,14 @@ export default function TemplatesPage() {
             <h1 className="text-3xl font-bold text-gray-900">Certificate Templates</h1>
             <p className="mt-2 text-gray-600">
               Managing templates as {currentIdentity.type === 'personal' ? 'Personal' : currentIdentity.name}
+              {currentIdentity.type === 'organization' && (
+                <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                  {currentIdentity.role}
+                </span>
+              )}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Only showing templates you own
             </p>
           </div>
           <button

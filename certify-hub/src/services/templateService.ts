@@ -43,8 +43,8 @@ export class TemplateService {
     this.cache.clear();
   }
 
-  async getTemplatesByIdentity(identity: UserIdentity): Promise<Template[]> {
-    const cacheKey = this.getCacheKey('getTemplatesByIdentity', { identity });
+  async getTemplatesByIdentity(identity: UserIdentity, includePublic: boolean = false): Promise<Template[]> {
+    const cacheKey = this.getCacheKey('getTemplatesByIdentity', { identity, includePublic });
     const cached = this.getCache(cacheKey);
     if (cached) return cached;
 
@@ -55,11 +55,21 @@ export class TemplateService {
         .order('created_at', { ascending: false });
 
       if (identity.type === 'personal') {
-        // For personal identity, get templates created by the user (no organization_id) + public templates
-        query = query.or(`user_id.eq.${identity.id},is_public.eq.true`).is('organization_id', null);
+        if (includePublic) {
+          // For personal identity, get templates created by the user (no organization_id) + public templates
+          query = query.or(`user_id.eq.${identity.id},is_public.eq.true`).is('organization_id', null);
+        } else {
+          // For personal identity, get only templates created by the user (no organization_id)
+          query = query.eq('user_id', identity.id).is('organization_id', null);
+        }
       } else {
-        // For organization identity, get templates created by the organization + public templates
-        query = query.or(`organization_id.eq.${identity.id},is_public.eq.true`);
+        if (includePublic) {
+          // For organization identity, get templates created by the organization + public templates
+          query = query.or(`organization_id.eq.${identity.id},is_public.eq.true`);
+        } else {
+          // For organization identity, get only templates created by the organization
+          query = query.eq('organization_id', identity.id);
+        }
       }
 
       const { data, error } = await query;

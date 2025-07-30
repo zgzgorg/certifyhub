@@ -10,6 +10,7 @@ interface TemplateWithCount extends Template {
 interface UseTemplatesOptions {
   publisherId?: string;
   identity?: UserIdentity;
+  includePublic?: boolean;
   autoFetch?: boolean;
 }
 
@@ -21,7 +22,7 @@ interface UseTemplatesReturn {
 }
 
 export function useTemplates(options: UseTemplatesOptions): UseTemplatesReturn {
-  const { publisherId, identity, autoFetch = true } = options;
+  const { publisherId, identity, includePublic = false, autoFetch = true } = options;
   const [templates, setTemplates] = useState<TemplateWithCount[] | Template[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,33 +33,30 @@ export function useTemplates(options: UseTemplatesOptions): UseTemplatesReturn {
     try {
       setLoading(true);
       setError(null);
-      
+
       let data: TemplateWithCount[] | Template[];
       if (identity) {
-        // Use identity-based template fetching
-        data = await templateService.getTemplatesByIdentity(identity);
+        data = await templateService.getTemplatesByIdentity(identity, includePublic);
       } else if (publisherId) {
-        // Use publisher-based template fetching (for backward compatibility)
         data = await templateService.getTemplatesWithCounts(publisherId);
       } else {
         data = [];
       }
-      
+
       setTemplates(data);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load templates';
-      setError(errorMessage);
       console.error('Error fetching templates:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch templates');
     } finally {
       setLoading(false);
     }
-  }, [publisherId, identity]);
+  }, [publisherId, identity, includePublic]);
 
   useEffect(() => {
     if (autoFetch && (publisherId || identity)) {
       fetchTemplates();
     }
-  }, [fetchTemplates, autoFetch, publisherId, identity]);
+  }, [fetchTemplates, autoFetch, publisherId, identity, includePublic]);
 
   return {
     templates,
