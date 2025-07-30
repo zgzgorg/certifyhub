@@ -19,6 +19,7 @@
 
 ### 🔐 认证与安全
 - [OAuth认证系统](./10-OAUTH-AUTHENTICATION.md) - Google OAuth集成和认证流程
+- [身份系统](./18-IDENTITY-SYSTEM.md) - 多身份切换和权限管理系统
 - [系统安全配置](./11-SECURITY.md) - 安全策略和最佳实践
 - [系统管理员设置](./12-SYSTEM-ADMIN.md) - 管理员权限和功能
 
