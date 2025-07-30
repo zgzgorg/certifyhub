@@ -44,15 +44,15 @@ export const useTemplateMetadata = (templateId?: string) => {
         .select('*')
         .eq('template_id', templateId)
         .eq('is_default', true)
-        .limit(1)
-        .single();
+        .limit(1);
 
       if (error) {
         console.error('Error fetching public template metadata:', error);
         return null;
       }
 
-      return data;
+      // Return the first result or null if no data
+      return data && data.length > 0 ? data[0] : null;
     } catch (err) {
       console.error('Error fetching public template metadata:', err);
       return null;
@@ -70,14 +70,15 @@ export const useTemplateMetadata = (templateId?: string) => {
         .eq('template_id', templateId)
         .eq('user_id', user.id)
         .eq('is_default', true)
-        .single();
+        .limit(1);
 
       if (error) {
         console.error('Error fetching user default metadata:', error);
         return null;
       }
 
-      return data;
+      // Return the first result or null if no data
+      return data && data.length > 0 ? data[0] : null;
     } catch (err) {
       console.error('Error fetching user default metadata:', err);
       return null;

@@ -46,8 +46,8 @@ export const useDatabaseTemplates = (options: UseDatabaseTemplatesOptions = {}) 
           }
         }
       } else {
-        // Fallback to original logic - show public templates and user's templates
-        query = query.or('is_public.eq.true' + (user?.id ? ',user_id.eq.' + user.id : ''));
+        // No identity - show public templates only
+        query = query.eq('is_public', true);
       }
 
       const { data, error: fetchError } = await query;

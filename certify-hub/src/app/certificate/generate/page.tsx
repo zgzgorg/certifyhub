@@ -20,7 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function CertificateGeneratePage() {
   const { user } = useAuth();
-  const { currentIdentity } = useIdentity();
+  const { currentIdentity, loading: identityLoading } = useIdentity();
   const [newFieldLabel, setNewFieldLabel] = useState("");
   const previewRef = useRef<CertificatePreviewRef | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
@@ -289,8 +289,11 @@ export default function CertificateGeneratePage() {
       return;
     }
     
-    // Delete database template
-    if (!user) return;
+    // Delete database template - only for logged in users
+    if (!user) {
+      alert('You need to be logged in to delete database templates');
+      return;
+    }
     
     try {
       // Delete from storage first
@@ -428,7 +431,8 @@ export default function CertificateGeneratePage() {
     }
   };
 
-  if (!currentIdentity) {
+  // Show loading state only if we're still loading identity and user is logged in
+  if (identityLoading && user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -445,17 +449,30 @@ export default function CertificateGeneratePage() {
         <div className="flex-1 min-w-[320px] max-w-md space-y-6 bg-white rounded-xl shadow p-6">
           
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <p className="text-sm text-blue-800">
-              Generating certificates as: <span className="font-medium">{currentIdentity.name}</span>
-              {currentIdentity.type === 'organization' && (
-                <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                  {currentIdentity.role}
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-blue-600 mt-1">
-              You can see: {currentIdentity.type === 'personal' ? 'your personal templates and public templates' : 'your organization templates and public templates'}
-            </p>
+            {currentIdentity ? (
+              <>
+                <p className="text-sm text-blue-800">
+                  Generating certificates as: <span className="font-medium">{currentIdentity.name}</span>
+                  {currentIdentity.type === 'organization' && (
+                    <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                      {currentIdentity.role}
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  You can see: {currentIdentity.type === 'personal' ? 'your personal templates and public templates' : 'your organization templates and public templates'}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-blue-800">
+                  Generating certificates as: <span className="font-medium">Guest User</span>
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  You can see: public templates only
+                </p>
+              </>
+            )}
           </div>
           
           <TemplateGridSelector
