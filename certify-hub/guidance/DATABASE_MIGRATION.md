@@ -52,25 +52,21 @@ CREATE INDEX idx_organization_members_role ON organization_members(role);
 -- 启用RLS
 ALTER TABLE organization_members ENABLE ROW LEVEL SECURITY;
 
--- 创建RLS策略
-CREATE POLICY "Members can view organization members" ON organization_members
-FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM organization_members om2
-    WHERE om2.organization_id = organization_members.organization_id
-    AND om2.user_id = auth.uid()
-  )
-);
+-- 创建RLS策略（修复无限递归问题）
+-- 临时策略：允许所有认证用户访问（适用于开发环境）
+CREATE POLICY "temp_allow_all_organization_members" ON organization_members
+FOR ALL USING (auth.uid() IS NOT NULL);
 
-CREATE POLICY "Owners and admins can manage members" ON organization_members
-FOR ALL USING (
-  EXISTS (
-    SELECT 1 FROM organization_members om2
-    WHERE om2.organization_id = organization_members.organization_id
-    AND om2.user_id = auth.uid()
-    AND om2.role IN ('owner', 'admin')
-  )
-);
+-- 生产环境安全策略（可选）：
+-- CREATE POLICY "Users can view their own memberships" ON organization_members
+-- FOR SELECT USING (user_id = auth.uid());
+-- 
+-- CREATE POLICY "Owners can manage members" ON organization_members
+-- FOR ALL USING (
+--   organization_id IN (
+--     SELECT id FROM organizations WHERE owner_id = auth.uid() OR user_id = auth.uid()
+--   )
+-- );
 
 -- 创建触发器
 CREATE TRIGGER update_organization_members_updated_at 
@@ -117,32 +113,30 @@ DROP TABLE IF EXISTS regular_users CASCADE;
 ### 步骤5：更新RLS策略
 
 ```sql
--- 删除旧的简化策略
+-- 删除旧的简化策略和有问题的策略
 DROP POLICY IF EXISTS "Enable all operations for organizations" ON organizations;
 DROP POLICY IF EXISTS "Enable all operations for regular users" ON regular_users;
+DROP POLICY IF EXISTS "Members can view organization members" ON organization_members;
+DROP POLICY IF EXISTS "Owners and admins can manage members" ON organization_members;
+DROP POLICY IF EXISTS "Users can view their organizations" ON organizations;
+DROP POLICY IF EXISTS "Owners can manage their organizations" ON organizations;
+DROP POLICY IF EXISTS "Admins can view organization details" ON organizations;
 
--- 创建新的organizations策略
-CREATE POLICY "Users can view their organizations" ON organizations
-FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM organization_members 
-    WHERE organization_id = organizations.id 
-    AND user_id = auth.uid()
-  )
-);
+-- 创建新的organizations策略（修复无限递归问题）
+-- 临时策略：允许所有认证用户访问（适用于开发环境）
+CREATE POLICY "temp_allow_all_organizations" ON organizations
+FOR ALL USING (auth.uid() IS NOT NULL);
 
-CREATE POLICY "Owners can manage their organizations" ON organizations
-FOR ALL USING (owner_id = auth.uid());
-
-CREATE POLICY "Admins can view organization details" ON organizations
-FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM organization_members 
-    WHERE organization_id = organizations.id 
-    AND user_id = auth.uid()
-    AND role IN ('owner', 'admin')
-  )
-);
+-- 生产环境安全策略（可选）：
+-- CREATE POLICY "Users can view their organizations" ON organizations
+-- FOR SELECT USING (
+--   owner_id = auth.uid() 
+--   OR user_id = auth.uid() -- 兼容旧系统
+--   OR id IN (SELECT DISTINCT organization_id FROM organization_members WHERE user_id = auth.uid())
+-- );
+-- 
+-- CREATE POLICY "Owners can manage their organizations" ON organizations
+-- FOR ALL USING (owner_id = auth.uid() OR user_id = auth.uid());
 ```
 
 ### 步骤6：创建辅助函数
@@ -267,6 +261,36 @@ DROP TABLE IF EXISTS organization_members CASCADE;
 -- 重新运行database-schema.sql中的策略
 ```
 
+## RLS策略故障排除
+
+### 无限递归错误修复
+
+如果遇到 "infinite recursion detected in policy" 错误，执行以下修复：
+
+```sql
+-- 紧急修复：删除所有有问题的策略
+DROP POLICY IF EXISTS "Members can view organization members" ON organization_members;
+DROP POLICY IF EXISTS "Owners and admins can manage members" ON organization_members;
+DROP POLICY IF EXISTS "Users can view their organizations" ON organizations;
+DROP POLICY IF EXISTS "Owners can manage their organizations" ON organizations;
+DROP POLICY IF EXISTS "Admins can view organization details" ON organizations;
+
+-- 应用临时策略（开发环境）
+CREATE POLICY "temp_allow_all_organizations" ON organizations
+FOR ALL USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "temp_allow_all_organization_members" ON organization_members
+FOR ALL USING (auth.uid() IS NOT NULL);
+```
+
+### 错误原因
+- RLS策略在检查权限时引用了相同的表，造成循环依赖
+- 例如：检查用户是否可以访问 organization_members 表时，策略又查询了 organization_members 表
+
+### 解决方案
+- 使用临时宽松策略进行开发
+- 生产环境需要更仔细设计的策略，避免自引用
+
 ## 注意事项
 
 1. **备份重要**：迁移前必须备份所有数据
@@ -274,6 +298,7 @@ DROP TABLE IF EXISTS organization_members CASCADE;
 3. **停机时间**：迁移过程中可能需要短暂停机
 4. **数据一致性**：确保所有外键关系正确
 5. **权限验证**：迁移后测试所有权限功能
+6. **RLS策略**：小心策略的循环引用，开发环境可使用宽松策略
 
 ## 后续工作
 

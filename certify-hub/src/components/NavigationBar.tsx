@@ -4,10 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
 import { UI_TEXT } from '@/constants/messages';
+import { hasOrganizationAccess } from '@/utils/organizationAccess';
 
 export default function NavigationBar() {
   const { user, organization, organizationMembers, signOut } = useAuth();
   const pathname = usePathname();
+
+  // Check if user has organization access
+  const userHasOrgAccess = hasOrganizationAccess({ user, organization, organizationMembers });
 
   // Check if current page matches
   const isActive = (path: string) => {
@@ -44,7 +48,7 @@ export default function NavigationBar() {
           >
             Templates
           </Link>
-          {organization && organization.status === 'approved' && (
+          {userHasOrgAccess && (
             <Link 
               href="/certificates" 
               className={`font-medium transition-colors ${

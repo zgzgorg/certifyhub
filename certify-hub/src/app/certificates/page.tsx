@@ -43,11 +43,21 @@ import { useCertificates } from '@/hooks/useCertificates';
 import { useTemplates } from '@/hooks/useTemplates';
 import type { Certificate } from '@/types/certificate';
 import { useEmailNotifications } from '@/hooks/useEmailNotifications';
+import { hasOrganizationAccess, getUserOrganizations } from '@/utils/organizationAccess';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 
 export default function CertificatesPage() {
-  const { organization } = useAuth();
+  const { user, organization, organizationMembers } = useAuth();
+  
+  // Check if user has organization access
+  const hasAccess = hasOrganizationAccess({ user, organization, organizationMembers });
+  const userOrganizations = getUserOrganizations({ user, organization, organizationMembers });
+  
+  // Get the primary organization for certificates (first approved org where user is owner/admin)
+  const primaryOrg = userOrganizations.find(org => 
+    org.status === 'approved' && (org.userRole === 'owner' || org.userRole === 'admin')
+  ) || organization;
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [editingCertificate, setEditingCertificate] = useState<Certificate | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -73,9 +83,9 @@ export default function CertificatesPage() {
     updateCertificate,
     deleteCertificate
   } = useCertificates({
-    publisherId: organization?.id || '',
+    publisherId: primaryOrg?.id || '',
     templateId: selectedTemplateId,
-    autoFetch: !!organization
+    autoFetch: !!primaryOrg && hasAccess
   });
 
   const {
@@ -84,8 +94,8 @@ export default function CertificatesPage() {
     error: templatesError,
     refetch: refetchTemplates
   } = useTemplates({
-    publisherId: organization?.id || '',
-    autoFetch: !!organization
+    publisherId: primaryOrg?.id || '',
+    autoFetch: !!primaryOrg && hasAccess
   });
 
   // Compute loading and error states
@@ -206,7 +216,7 @@ export default function CertificatesPage() {
   // 单发邮件逻辑
   const handleSendSingleEmail = async (certificate: Certificate) => {
     const templateName = selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.name || 'Unknown Template' : 'All Templates';
-    const organizationName = organization?.name || 'Unknown Organization';
+    const organizationName = primaryOrg?.name || 'Unknown Organization';
     const verificationBaseUrl = typeof window !== 'undefined' ? `${window.location.origin}/verify` : '';
     const result = await sendSingleEmail(certificate, templateName, organizationName, verificationBaseUrl);
     
@@ -232,7 +242,7 @@ export default function CertificatesPage() {
     setIsBulkSending(true);
     const selectedCerts = certificates.filter(cert => selectedForBulk.has(cert.id));
     const templateName = selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.name || 'Unknown Template' : 'All Templates';
-    const organizationName = organization?.name || 'Unknown Organization';
+    const organizationName = primaryOrg?.name || 'Unknown Organization';
     const verificationBaseUrl = typeof window !== 'undefined' ? `${window.location.origin}/verify` : '';
 
     try {
@@ -301,11 +311,11 @@ export default function CertificatesPage() {
     setSelectedForBulk(newSelected);
   };
 
-  if (!organization) {
+  if (!hasAccess) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
         <Alert severity="info">
-          Please log in as an organization to view certificates.
+          You need to be an owner or admin of an approved organization to view certificates.
         </Alert>
       </Box>
     );

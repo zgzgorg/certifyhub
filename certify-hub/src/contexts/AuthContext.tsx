@@ -141,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       // Also fetch organizations owned by this user
+      debug.auth('Fetching owned organizations...');
       const { data: ownedOrgs, error: ownedOrgsError } = await supabase
         .from('organizations')
         .select('*')
@@ -153,13 +154,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         debug.warn('Owned organizations fetch error:', ownedOrgsError.message);
       }
       
+      // Fallback: check for legacy organizations where user_id might still be used
+      let legacyOrgs = [];
+      if ((!ownedOrgs || ownedOrgs.length === 0) && !ownedOrgsError) {
+        debug.auth('No owned organizations found, checking for legacy organizations...');
+        const { data: legacyOrgData, error: legacyError } = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('user_id', userId)
+          .abortSignal(signal);
+          
+        if (signal.aborted) return;
+        
+        if (legacyError) {
+          debug.warn('Legacy organizations fetch error:', legacyError.message);
+        } else {
+          legacyOrgs = legacyOrgData || [];
+        }
+      }
+      
       setOrganizationMembers(memberships || []);
       
-      // Set primary organization (first owned org, or first membership org, or null)
-      const primaryOrg = ownedOrgs?.[0] || memberships?.[0]?.organizations || null;
+      // Set primary organization (first owned org, first legacy org, or first membership org, or null)
+      const allOwnedOrgs = [...(ownedOrgs || []), ...legacyOrgs];
+      const primaryOrg = allOwnedOrgs[0] || memberships?.[0]?.organizations || null;
       setOrganization(primaryOrg);
       
-      debug.auth(`Found ${memberships?.length || 0} organization memberships and ${ownedOrgs?.length || 0} owned organizations`);
+      debug.auth(`Found ${memberships?.length || 0} memberships, ${ownedOrgs?.length || 0} owned orgs, ${legacyOrgs.length} legacy orgs`);
       
     } catch (error: unknown) {
       if (signal.aborted) return;

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
+import { getUserOrganizations } from '@/utils/organizationAccess';
 
 // Loading component for better UX
 function DashboardSkeleton() {
@@ -59,6 +60,8 @@ export default function DashboardPage() {
   const { user, organization, organizationMembers, loading, error, retry } = useAuth();
   const router = useRouter();
 
+  const userOrganizations = getUserOrganizations({ user, organization, organizationMembers });
+
   useEffect(() => {
     if (!loading && !user && !error) {
       router.push('/login');
@@ -106,21 +109,39 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm text-gray-600">Account Type</p>
                 <p className="font-medium">
-                  {organization ? 'Organization' : 'User'}
+                  {userOrganizations.length > 0 ? 'Organization Member' : 'Individual User'}
                 </p>
               </div>
-              {organization && (
+              {userOrganizations.length > 0 && (
                 <div>
-                  <p className="text-sm text-gray-600">Organization Status</p>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    organization.status === 'approved' 
-                      ? 'bg-green-100 text-green-800' 
-                      : organization.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {organization.status}
-                  </span>
+                  <p className="text-sm text-gray-600 mb-2">Organization Roles</p>
+                  <div className="space-y-1">
+                    {userOrganizations.map((org: any) => (
+                      <div key={org.id} className="text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium truncate">{org.name}</span>
+                          <span className={`px-2 py-1 text-xs rounded-full ml-2 ${
+                            org.userRole === 'owner' 
+                              ? 'bg-purple-100 text-purple-800' 
+                              : org.userRole === 'admin'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {org.userRole}
+                          </span>
+                        </div>
+                        <span className={`inline-block px-2 py-1 text-xs rounded-full mt-1 ${
+                          org.status === 'approved' 
+                            ? 'bg-green-100 text-green-800' 
+                            : org.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {org.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -138,14 +159,27 @@ export default function DashboardPage() {
               >
                 Generate Certificate
               </Link>
-              {organization && organization.status === 'approved' && (
-                <Link
-                  href="/certificate/templates"
-                  className="block w-full bg-green-600 text-white py-2 px-4 rounded-md text-center hover:bg-green-700 transition"
-                >
-                  Manage Templates
-                </Link>
+              
+              {/* Show organization features for owners/admins of approved organizations */}
+              {userOrganizations.some((org: any) => 
+                org.status === 'approved' && (org.userRole === 'owner' || org.userRole === 'admin')
+              ) && (
+                <>
+                  <Link
+                    href="/certificate/templates"
+                    className="block w-full bg-green-600 text-white py-2 px-4 rounded-md text-center hover:bg-green-700 transition"
+                  >
+                    Manage Templates
+                  </Link>
+                  <Link
+                    href="/organization/manage"
+                    className="block w-full bg-purple-600 text-white py-2 px-4 rounded-md text-center hover:bg-purple-700 transition"
+                  >
+                    Manage Organization
+                  </Link>
+                </>
               )}
+              
               <Link
                 href="/certificate/history"
                 className="block w-full bg-gray-600 text-white py-2 px-4 rounded-md text-center hover:bg-gray-700 transition"
@@ -168,7 +202,9 @@ export default function DashboardPage() {
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Templates Available</span>
                 <span className="font-semibold">
-                  {organization && organization.status === 'approved' ? 'Unlimited' : '5'}
+                  {userOrganizations.some((org: any) => 
+                    org.status === 'approved' && (org.userRole === 'owner' || org.userRole === 'admin')
+                  ) ? 'Unlimited' : '5'}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -180,51 +216,80 @@ export default function DashboardPage() {
         </div>
 
         {/* Organization Details */}
-        {organization && (
+        {userOrganizations.length > 0 && (
           <div className="mt-8 bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Organization Details
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <p className="text-sm text-gray-600">Organization Name</p>
-                <p className="font-medium">{organization.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Contact Person</p>
-                <p className="font-medium">{organization.contact_person}</p>
-              </div>
-              {organization.website && (
-                <div>
-                  <p className="text-sm text-gray-600">Website</p>
-                  <a 
-                    href={organization.website} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="font-medium text-blue-600 hover:underline"
-                  >
-                    {organization.website}
-                  </a>
+            <div className="space-y-6">
+              {userOrganizations.map((org: any) => (
+                <div key={org.id} className="border-l-4 border-blue-500 pl-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-lg font-medium text-gray-900">{org.name}</h4>
+                    <div className="flex space-x-2">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        org.userRole === 'owner' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : org.userRole === 'admin'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {org.userRole}
+                      </span>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        org.status === 'approved' 
+                          ? 'bg-green-100 text-green-800' 
+                          : org.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {org.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Contact Person</p>
+                      <p className="font-medium">{org.contact_person}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Email</p>
+                      <p className="font-medium">{org.email}</p>
+                    </div>
+                    {org.website && (
+                      <div>
+                        <p className="text-sm text-gray-600">Website</p>
+                        <a 
+                          href={org.website} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="font-medium text-blue-600 hover:underline"
+                        >
+                          {org.website}
+                        </a>
+                      </div>
+                    )}
+                    {org.contact_phone && (
+                      <div>
+                        <p className="text-sm text-gray-600">Phone</p>
+                        <p className="font-medium">{org.contact_phone}</p>
+                      </div>
+                    )}
+                    {org.description && (
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-gray-600">Description</p>
+                        <p className="font-medium">{org.description}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-              {organization.contact_phone && (
-                <div>
-                  <p className="text-sm text-gray-600">Phone</p>
-                  <p className="font-medium">{organization.contact_phone}</p>
-                </div>
-              )}
-              {organization.description && (
-                <div className="md:col-span-2">
-                  <p className="text-sm text-gray-600">Description</p>
-                  <p className="font-medium">{organization.description}</p>
-                </div>
-              )}
+              ))}
             </div>
           </div>
         )}
 
-        {/* User Details */}
-        {!organization && user && (
+        {/* User Details - Only show if user has no organizations */}
+        {userOrganizations.length === 0 && user && (
           <div className="mt-8 bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               User Details
@@ -240,19 +305,6 @@ export default function DashboardPage() {
                   {new Date(user.created_at).toLocaleDateString()}
                 </p>
               </div>
-              {organizationMembers && organizationMembers.length > 0 && (
-                <div className="md:col-span-2">
-                  <p className="text-sm text-gray-600">Organization Memberships</p>
-                  <div className="mt-2 space-y-1">
-                    {organizationMembers.map((membership: any) => (
-                      <div key={membership.id} className="text-sm bg-gray-50 p-2 rounded">
-                        <span className="font-medium">{membership.organizations?.name}</span>
-                        <span className="text-gray-600 ml-2">({membership.role})</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
