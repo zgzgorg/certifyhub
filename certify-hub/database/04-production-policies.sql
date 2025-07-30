@@ -178,7 +178,7 @@ FOR SELECT USING (
     SELECT id FROM organizations WHERE owner_id = auth.uid()
   )
   OR publisher_id IN (
-    SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
+    SELECT organization_id FROM organization_members WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
   )
   OR status = 'active' -- Active certificates are publicly viewable
   OR is_system_admin() -- System admins can view all certificates
@@ -191,7 +191,7 @@ FOR INSERT WITH CHECK (
     SELECT id FROM organizations WHERE owner_id = auth.uid()
   )
   OR publisher_id IN (
-    SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
+    SELECT organization_id FROM organization_members WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
   )
   OR is_system_admin() -- System admins can insert certificates for any organization
 );
@@ -203,7 +203,7 @@ FOR UPDATE USING (
     SELECT id FROM organizations WHERE owner_id = auth.uid()
   )
   OR publisher_id IN (
-    SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
+    SELECT organization_id FROM organization_members WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
   )
   OR is_system_admin() -- System admins can update any certificate
 );
@@ -215,7 +215,7 @@ FOR DELETE USING (
     SELECT id FROM organizations WHERE owner_id = auth.uid()
   )
   OR publisher_id IN (
-    SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
+    SELECT organization_id FROM organization_members WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
   )
   OR is_system_admin() -- System admins can delete any certificate
 );

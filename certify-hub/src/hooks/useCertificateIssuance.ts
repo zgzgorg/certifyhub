@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIdentity } from '@/contexts/IdentityContext';
 import { BulkGenerationRow, CertificateField, CertificateTemplate } from '@/types/certificate';
 import React from 'react';
 import CertificatePreview from '@/components/CertificatePreview';
@@ -31,6 +32,7 @@ export interface IssuanceResult {
 
 export const useCertificateIssuance = () => {
   const { organization } = useAuth();
+  const { currentIdentity } = useIdentity();
   const [issuing, setIssuing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -266,8 +268,9 @@ export const useCertificateIssuance = () => {
     template: CertificateTemplate,
     updateDuplicates: boolean = false
   ): Promise<IssuanceResult> => {
-    if (!organization) {
-      throw new Error('Organization not found');
+    // Use current identity instead of organization from useAuth
+    if (!currentIdentity || currentIdentity.type !== 'organization') {
+      throw new Error('Organization identity is required for certificate issuance');
     }
 
     setIssuing(true);
@@ -290,7 +293,7 @@ export const useCertificateIssuance = () => {
       // Prepare certificate data
       const certificates: CertificateIssuanceData[] = bulkRows.map(row => ({
         templateId,
-        publisherId: organization.id,
+        publisherId: currentIdentity.id, // Use current identity ID instead of organization.id
         recipientEmail: row.recipientEmail || '',
         metadataValues: editableFields.reduce((acc, field) => {
           acc[field.id] = row[field.id] || '';

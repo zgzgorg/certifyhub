@@ -25,6 +25,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import { CertificateField, BulkGenerationRow, CertificateTemplate } from '@/types/certificate';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIdentity } from '@/contexts/IdentityContext';
 import { useCertificateIssuance, DuplicateCertificate } from '@/hooks/useCertificateIssuance';
 
 interface BulkGenerationModalProps {
@@ -75,14 +76,30 @@ export const BulkGenerationModal: React.FC<BulkGenerationModalProps> = ({
   const [issuanceResult, setIssuanceResult] = useState<any>(null);
 
   const { organization } = useAuth();
+  const { currentIdentity } = useIdentity();
   const { issuing, progress, error: issuanceError, issueCertificates, clearError } = useCertificateIssuance();
 
   const canExport = bulkRows.length > 0 && !exporting && !issuing;
-  const isVerifiedOrganization = organization?.status === 'approved';
+  const isOrganizationIdentity = currentIdentity?.type === 'organization';
+  
+  // Check if current organization identity is verified
+  const isVerifiedOrganization = isOrganizationIdentity && 
+    (currentIdentity?.organization?.status === 'approved' || 
+     (organization?.id === currentIdentity?.id && organization?.status === 'approved'));
 
   const handleIssueCertificates = async () => {
     if (!templateId || !selectedTemplate) {
       console.error('Template is required for certificate issuance');
+      return;
+    }
+
+    if (!isOrganizationIdentity) {
+      alert('Certificate issuance is only available for organization identities. Please switch to organization identity.');
+      return;
+    }
+
+    if (!isVerifiedOrganization) {
+      alert('Your organization needs to be verified to issue certificates. Please contact administrators.');
       return;
     }
 
@@ -109,6 +126,16 @@ export const BulkGenerationModal: React.FC<BulkGenerationModalProps> = ({
 
   const handleUpdateDuplicates = async () => {
     if (!templateId || !selectedTemplate) return;
+
+    if (!isOrganizationIdentity) {
+      alert('Certificate issuance is only available for organization identities. Please switch to organization identity.');
+      return;
+    }
+
+    if (!isVerifiedOrganization) {
+      alert('Your organization needs to be verified to issue certificates. Please contact administrators.');
+      return;
+    }
 
     try {
       const result = await issueCertificates(templateId, bulkRows, editableFields, selectedTemplate, true);
@@ -211,7 +238,7 @@ Zephyr    2024-01-16  CERT002           zephyr@example.com`}
               variant="subtitle2" 
               color={isVerifiedOrganization ? "success.main" : "text.disabled"}
             >
-              {isVerifiedOrganization ? "Verified Organization" : "Organization Required"}
+              {isVerifiedOrganization ? "Verified Organization" : "Organization Identity Required"}
             </Typography>
           </Box>
           <FormControlLabel
@@ -238,16 +265,27 @@ Zephyr    2024-01-16  CERT002           zephyr@example.com`}
                 >
                   {isVerifiedOrganization 
                     ? "Issue certificates directly to the database instead of generating PDF files. This feature is only available for verified organizations."
-                    : "Upgrade to a verified organization to issue certificates directly to the database and manage them online."
+                    : !isOrganizationIdentity 
+                      ? "Switch to organization identity to issue certificates directly to the database and manage them online."
+                      : "Your organization needs to be verified to issue certificates directly to the database."
                   }
                 </Typography>
-                {!isVerifiedOrganization && (
+                {!isOrganizationIdentity && (
                   <Typography 
                     variant="caption" 
                     color="primary.main" 
                     sx={{ display: 'block', mt: 0.5, fontWeight: 'medium' }}
                   >
-                    💡 Register as an organization to unlock this powerful feature!
+                    💡 Switch to organization identity to unlock this powerful feature!
+                  </Typography>
+                )}
+                {isOrganizationIdentity && organization?.status !== 'approved' && (
+                  <Typography 
+                    variant="caption" 
+                    color="warning.main" 
+                    sx={{ display: 'block', mt: 0.5, fontWeight: 'medium' }}
+                  >
+                    ⚠️ Your organization needs to be verified by administrators.
                   </Typography>
                 )}
               </Box>
@@ -389,7 +427,7 @@ Notes:
         <Table>
           <TableHead>
             <TableRow>
-              {issueMode && (
+              {issueMode && isOrganizationIdentity && (
                 <TableCell>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography 
@@ -416,20 +454,20 @@ Notes:
           <TableBody>
             {bulkRows.map((row, rowIdx) => (
               <TableRow key={row.id}>
-                {issueMode && (
+                {issueMode && isOrganizationIdentity && (
                   <TableCell>
                     <TextField
                       size="small"
                       type="email"
                       value={row.recipientEmail || ''}
                       onChange={e => onBulkCellChange(rowIdx, 'recipientEmail', e.target.value)}
-                      placeholder={isVerifiedOrganization ? "recipient@example.com" : "Organization required"}
+                      placeholder={isVerifiedOrganization ? "recipient@example.com" : "Organization verification required"}
                       required
                       disabled={!isVerifiedOrganization}
                       error={isVerifiedOrganization && (!row.recipientEmail || row.recipientEmail.trim() === '')}
                       helperText={
                         !isVerifiedOrganization 
-                          ? "Register as organization to enable" 
+                          ? "Organization verification required" 
                           : (!row.recipientEmail || row.recipientEmail.trim() === '') 
                             ? 'Email is required' 
                             : ''
@@ -444,8 +482,8 @@ Notes:
                       value={row[field.id] || ''}
                       onChange={e => onBulkCellChange(rowIdx, field.id, e.target.value)}
                       placeholder={field.label}
-                      required={issueMode && isVerifiedOrganization}
-                      error={issueMode && isVerifiedOrganization && (!row[field.id] || row[field.id]?.trim() === '')}
+                      required={issueMode && isOrganizationIdentity && isVerifiedOrganization}
+                      error={issueMode && isOrganizationIdentity && isVerifiedOrganization && (!row[field.id] || row[field.id]?.trim() === '')}
                     />
                   </TableCell>
                 ))}
@@ -465,7 +503,7 @@ Notes:
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={exporting || issuing}>Close</Button>
-        {issueMode ? (
+        {issueMode && isOrganizationIdentity ? (
           <Button 
             variant="contained" 
             color="success" 
