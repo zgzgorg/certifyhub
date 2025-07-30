@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabaseClient';
-import { debugOAuthEnvironment, validateOAuthConfiguration } from '../utils/oauthDebug';
-import { trackOAuthFlow, interceptOAuthRequest, analyzeSupabaseAuthURL } from '../utils/oauthFlowTracker';
+import { getOAuthCallbackUrl, validateOAuthEnvironment } from '../utils/oauthRedirect';
 
 export default function GoogleLoginButton() {
   const [loading, setLoading] = useState(false);
@@ -18,28 +17,19 @@ export default function GoogleLoginButton() {
     try {
       console.log('🚀 Attempting Google login...');
       
-      // COMPREHENSIVE DEBUGGING - Track every step
-      const flowInfo = trackOAuthFlow();
-      interceptOAuthRequest();
-      await analyzeSupabaseAuthURL();
+      // Validate OAuth environment and get callback URL
+      const envValidation = validateOAuthEnvironment();
+      const callbackUrl = getOAuthCallbackUrl();
       
-      // Debug OAuth environment
-      const debugInfo = debugOAuthEnvironment();
-      const validation = validateOAuthConfiguration();
-      
-      if (!validation.valid) {
-        console.error('❌ OAuth configuration invalid:', validation.issues);
+      if (!envValidation.valid) {
+        console.error('❌ OAuth configuration invalid:', envValidation.warnings);
         setMessage({ 
           type: 'error', 
-          text: `Configuration error: ${validation.issues.join(', ')}` 
+          text: `Configuration error: ${envValidation.warnings.join(', ')}` 
         });
         setLoading(false);
         return;
       }
-      
-      const callbackUrl = `${window.location.origin}/auth/callback`;
-      console.log('📍 Using callback URL:', callbackUrl);
-      console.log('🔍 CRITICAL CHECK: Does callback URL contain localhost?', callbackUrl.includes('localhost'));
       
       // 使用自定义callback URL来处理OAuth响应
       const { data, error } = await supabase.auth.signInWithOAuth({
