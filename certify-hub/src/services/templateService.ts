@@ -55,11 +55,11 @@ export class TemplateService {
         .order('created_at', { ascending: false });
 
       if (identity.type === 'personal') {
-        // For personal identity, get templates created by the user (no organization_id)
-        query = query.eq('user_id', identity.id).is('organization_id', null);
+        // For personal identity, get templates created by the user (no organization_id) + public templates
+        query = query.or(`user_id.eq.${identity.id},is_public.eq.true`).is('organization_id', null);
       } else {
-        // For organization identity, get templates created by the organization
-        query = query.eq('organization_id', identity.id);
+        // For organization identity, get templates created by the organization + public templates
+        query = query.or(`organization_id.eq.${identity.id},is_public.eq.true`);
       }
 
       const { data, error } = await query;

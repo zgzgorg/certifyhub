@@ -452,6 +452,9 @@ export default function CertificateGeneratePage() {
                 </span>
               )}
             </p>
+            <p className="text-xs text-blue-600 mt-1">
+              You can see: {currentIdentity.type === 'personal' ? 'your personal templates and public templates' : 'your organization templates and public templates'}
+            </p>
           </div>
           
           <TemplateGridSelector
