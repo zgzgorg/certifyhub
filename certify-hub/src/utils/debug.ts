@@ -6,6 +6,7 @@ interface DebugConfig {
   api: boolean;
   supabase: boolean;
   supabaseVerbose: boolean;
+  identity: boolean;
 }
 
 // Parse environment variables for debug configuration
@@ -24,7 +25,8 @@ const parseDebugEnv = (): DebugConfig => {
     auth: process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true' || defaultEnabled,
     api: process.env.NEXT_PUBLIC_DEBUG_API === 'true' || defaultEnabled,
     supabase: process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true' || defaultEnabled,
-    supabaseVerbose: process.env.NEXT_PUBLIC_DEBUG_SUPABASE_VERBOSE === 'true' // Only when explicitly enabled
+    supabaseVerbose: process.env.NEXT_PUBLIC_DEBUG_SUPABASE_VERBOSE === 'true', // Only when explicitly enabled
+    identity: process.env.NEXT_PUBLIC_DEBUG_IDENTITY === 'true' || defaultEnabled
   };
 };
 
@@ -67,6 +69,15 @@ export const debug = {
   supabase: (message: string, ...args: any[]) => {
     if (debugConfig.supabase) {
       console.log(`📦 ${message}`, ...args);
+    }
+  },
+
+  /**
+   * Identity-related debug logging
+   */
+  identity: (message: string, ...args: any[]) => {
+    if (debugConfig.identity) {
+      console.log(`👤 ${message}`, ...args);
     }
   },
 
@@ -122,7 +133,8 @@ export const debug = {
   isAuthEnabled: () => debugConfig.auth,
   isApiEnabled: () => debugConfig.api,
   isSupabaseEnabled: () => debugConfig.supabase,
-  isSupabaseVerboseEnabled: () => debugConfig.supabaseVerbose
+  isSupabaseVerboseEnabled: () => debugConfig.supabaseVerbose,
+  isIdentityEnabled: () => debugConfig.identity
 };
 
 // Export individual debug functions for convenience

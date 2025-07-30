@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from '../contexts/AuthContext';
 import NavigationBar from '../components/NavigationBar';
+import { IdentityProvider } from '../contexts/IdentityContext';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,11 +35,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
-          <NavigationBar />
-          {/* Content area with top spacing */}
-          <div className="pt-16">
-            {children}
-          </div>
+          <IdentityProvider>
+            <NavigationBar />
+            {/* Content area with top spacing */}
+            <div className="pt-16">
+              {children}
+            </div>
+          </IdentityProvider>
         </AuthProvider>
       </body>
     </html>

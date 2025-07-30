@@ -76,3 +76,22 @@ WHERE o.id IS NULL;
 -- Completion
 -- ===================================================================
 SELECT 'Data migration completed successfully!' as result; 
+
+-- Migration: Add organization_id to templates table
+-- This migration adds support for organization-based templates
+
+-- Add organization_id column to templates table
+ALTER TABLE templates 
+ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_templates_organization_id ON templates(organization_id);
+
+-- Update existing templates to have null organization_id (personal templates)
+-- This ensures existing templates are treated as personal templates
+UPDATE templates 
+SET organization_id = NULL 
+WHERE organization_id IS NULL;
+
+-- Add comment to document the change
+COMMENT ON COLUMN templates.organization_id IS 'References the organization that created this template. NULL for personal templates.'; 

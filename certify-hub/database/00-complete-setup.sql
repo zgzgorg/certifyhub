@@ -66,6 +66,7 @@ CREATE TABLE templates (
   file_type VARCHAR(100) NOT NULL,
   is_public BOOLEAN DEFAULT false,
   user_id UUID NOT NULL,
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   share_url TEXT UNIQUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

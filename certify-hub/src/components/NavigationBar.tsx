@@ -3,11 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
+import { useIdentity } from '../contexts/IdentityContext';
 import { UI_TEXT } from '@/constants/messages';
 import { hasOrganizationAccess } from '@/utils/organizationAccess';
+import IdentitySelector from './IdentitySelector';
 
 export default function NavigationBar() {
   const { user, organization, organizationMembers, signOut } = useAuth();
+  const { currentIdentity } = useIdentity();
   const pathname = usePathname();
 
   // Check if user has organization access
@@ -85,27 +88,7 @@ export default function NavigationBar() {
               >
                 Organizations
               </Link>
-              {organization && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">
-                    {organization.name}
-                  </span>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    organization.status === 'approved' 
-                      ? 'bg-green-100 text-green-800' 
-                      : organization.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {organization.status}
-                  </span>
-                </div>
-              )}
-              {!organization && user && (
-                <span className="text-sm text-gray-600">
-                  {user.user_metadata?.name || user.email}
-                </span>
-              )}
+              <IdentitySelector />
               <button
                 onClick={signOut}
                 className="text-gray-700 hover:text-blue-700 font-medium"

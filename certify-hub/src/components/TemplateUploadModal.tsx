@@ -3,6 +3,8 @@
 import { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIdentity } from '@/contexts/IdentityContext';
+import { templateService } from '@/services/templateService';
 
 interface TemplateUploadModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface TemplateUploadModalProps {
 
 export default function TemplateUploadModal({ isOpen, onClose, onUploaded }: TemplateUploadModalProps) {
   const { user } = useAuth();
+  const { currentIdentity } = useIdentity();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -46,7 +49,7 @@ export default function TemplateUploadModal({ isOpen, onClose, onUploaded }: Tem
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedFile || !user) {
+    if (!selectedFile || !user || !currentIdentity) {
       setError('Please select a file and ensure you are logged in');
       return;
     }
@@ -86,32 +89,22 @@ export default function TemplateUploadModal({ isOpen, onClose, onUploaded }: Tem
         .from('templates')
         .getPublicUrl(fileName);
 
-      // Save template info to database
-      console.log('Saving template to database...');
-      console.log('User ID:', user.id);
-      console.log('Public URL:', urlData.publicUrl);
-      
-      const { data: dbData, error: dbError } = await supabase
-        .from('templates')
-        .insert({
-          name: formData.name,
-          description: formData.description,
-          file_url: urlData.publicUrl,
-          file_name: selectedFile.name,
-          file_size: selectedFile.size,
-          file_type: selectedFile.type,
-          is_public: formData.is_public,
-          user_id: user.id,
-          share_url: `${window.location.origin}/template/${Date.now()}-${Math.random().toString(36).substring(2)}`
-        })
-        .select();
+      // Prepare template data
+      const templateData = {
+        name: formData.name,
+        description: formData.description,
+        file_url: urlData.publicUrl,
+        file_name: selectedFile.name,
+        file_size: selectedFile.size,
+        file_type: selectedFile.type,
+        is_public: formData.is_public,
+        share_url: `${window.location.origin}/template/${Date.now()}-${Math.random().toString(36).substring(2)}`
+      };
 
-      if (dbError) {
-        console.error('Database insert error:', dbError);
-        throw dbError;
-      }
+      // Save template using the service with identity
+      await templateService.createTemplate(templateData, currentIdentity);
       
-      console.log('Database insert successful:', dbData);
+      console.log('Template created successfully');
 
       // Reset form
       setFormData({ name: '', description: '', is_public: false });
@@ -157,6 +150,19 @@ export default function TemplateUploadModal({ isOpen, onClose, onUploaded }: Tem
             </svg>
           </button>
         </div>
+
+        {currentIdentity && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-sm text-blue-800">
+              Creating template as: <span className="font-medium">{currentIdentity.name}</span>
+              {currentIdentity.type === 'organization' && (
+                <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                  {currentIdentity.role}
+                </span>
+              )}
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

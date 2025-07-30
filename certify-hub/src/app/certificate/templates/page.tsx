@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIdentity } from '@/contexts/IdentityContext';
+import { useTemplates } from '@/hooks/useTemplates';
 import TemplateUploadModal from '@/components/TemplateUploadModal';
 import TemplateCard from '@/components/TemplateCard';
 import { TemplateMetadataEditor } from '@/components/TemplateMetadataEditor';
@@ -10,54 +12,24 @@ import { Template, TemplateMetadata } from '@/types/template';
 
 export default function TemplatesPage() {
   const { user } = useAuth();
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const { currentIdentity } = useIdentity();
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
   const [editingMetadata, setEditingMetadata] = useState<TemplateMetadata | null>(null);
   const hasFetched = useRef(false);
 
-  // Parameterize fetchTemplates
-  const fetchTemplates = useCallback(async () => {
-    if (!user?.id) return;
-    
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('templates')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching templates:', error);
-        return;
-      }
-
-      setTemplates(data || []);
-    } catch (error) {
-      console.error('Error fetching templates:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id]);
-
-  // Only fetch once when user.id first has a value, reset after logout
-  useEffect(() => {
-    if (user?.id && !hasFetched.current) {
-      fetchTemplates();
-      hasFetched.current = true;
-    } else if (!user?.id) {
-      hasFetched.current = false;
-    }
-  }, [user?.id, fetchTemplates]);
+  // Use the updated useTemplates hook with identity
+  const { templates, loading, error, refetch } = useTemplates({
+    identity: currentIdentity || undefined,
+    autoFetch: !!currentIdentity
+  });
 
   // Auto-refresh after upload/delete
   const handleTemplateUploaded = useCallback(() => {
-    hasFetched.current = false;
     setIsUploadModalOpen(false);
-  }, []);
+    refetch();
+  }, [refetch]);
 
   const handleTemplateDeleted = useCallback(async (templateId: string) => {
     try {
@@ -77,11 +49,11 @@ export default function TemplatesPage() {
         .delete()
         .eq('id', templateId);
       if (error) throw error;
-      hasFetched.current = false;
+      refetch();
     } catch (error) {
       console.error('Error deleting template:', error);
     }
-  }, [templates]);
+  }, [templates, refetch]);
 
   const handleManageMetadata = useCallback((template: Template) => {
     setSelectedTemplate(template);
@@ -127,12 +99,12 @@ export default function TemplatesPage() {
       setIsMetadataEditorOpen(false);
       setSelectedTemplate(null);
       setEditingMetadata(null);
-      hasFetched.current = false;
+      refetch();
     } catch (error) {
       console.error('Error saving metadata:', error);
       alert('Failed to save metadata');
     }
-  }, [selectedTemplate, user?.id]);
+  }, [selectedTemplate, user?.id, refetch]);
 
   const handleMetadataCancel = useCallback(() => {
     setIsMetadataEditorOpen(false);
@@ -150,13 +122,25 @@ export default function TemplatesPage() {
     );
   }
 
+  if (!currentIdentity) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Loading identity...</h1>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Certificate Templates</h1>
-            <p className="mt-2 text-gray-600">Manage your certificate templates</p>
+            <p className="mt-2 text-gray-600">
+              Managing templates as {currentIdentity.type === 'personal' ? 'Personal' : currentIdentity.name}
+            </p>
           </div>
           <button
             onClick={() => setIsUploadModalOpen(true)}
@@ -165,6 +149,12 @@ export default function TemplatesPage() {
             Upload Template
           </button>
         </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-800">Error loading templates: {error}</p>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center items-center h-64">
@@ -178,7 +168,12 @@ export default function TemplatesPage() {
               </svg>
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No templates yet</h3>
-            <p className="text-gray-600 mb-6">Get started by uploading your first certificate template</p>
+            <p className="text-gray-600 mb-6">
+              {currentIdentity.type === 'personal' 
+                ? 'Get started by uploading your first certificate template'
+                : `No templates created by ${currentIdentity.name} yet`
+              }
+            </p>
             <button
               onClick={() => setIsUploadModalOpen(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"

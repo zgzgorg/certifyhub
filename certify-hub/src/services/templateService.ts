@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Template } from '@/types/template';
+import type { UserIdentity } from '@/types/user';
 
 interface TemplateWithCount extends Template {
   certificateCount: number;
@@ -40,6 +41,37 @@ export class TemplateService {
 
   public clearCache(): void {
     this.cache.clear();
+  }
+
+  async getTemplatesByIdentity(identity: UserIdentity): Promise<Template[]> {
+    const cacheKey = this.getCacheKey('getTemplatesByIdentity', { identity });
+    const cached = this.getCache(cacheKey);
+    if (cached) return cached;
+
+    try {
+      let query = supabase
+        .from('templates')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (identity.type === 'personal') {
+        // For personal identity, get templates created by the user (no organization_id)
+        query = query.eq('user_id', identity.id).is('organization_id', null);
+      } else {
+        // For organization identity, get templates created by the organization
+        query = query.eq('organization_id', identity.id);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      this.setCache(cacheKey, data || []);
+      return data || [];
+    } catch (error) {
+      console.error('Error loading templates by identity:', error);
+      throw new Error('Failed to load templates');
+    }
   }
 
   async getTemplatesWithCounts(publisherId: string): Promise<TemplateWithCount[]> {
@@ -118,6 +150,32 @@ export class TemplateService {
 
     this.setCache(cacheKey, data);
     return data;
+  }
+
+  async createTemplate(templateData: any, identity: UserIdentity): Promise<Template> {
+    try {
+      const templateToCreate = {
+        ...templateData,
+        user_id: identity.id,
+        organization_id: identity.type === 'organization' ? identity.id : null,
+      };
+
+      const { data, error } = await supabase
+        .from('templates')
+        .insert(templateToCreate)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Clear cache to reflect new template
+      this.clearCache();
+
+      return data;
+    } catch (error) {
+      console.error('Error creating template:', error);
+      throw new Error('Failed to create template');
+    }
   }
 }
 

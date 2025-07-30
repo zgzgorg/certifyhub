@@ -8,6 +8,7 @@ export type Template = {
   file_type: string;
   is_public: boolean;
   user_id: string;
+  organization_id?: string;
   created_at: string;
   updated_at: string;
   preview_url?: string;

@@ -39,6 +39,7 @@ import {
   Email as EmailIcon
 } from '@mui/icons-material';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIdentity } from '@/contexts/IdentityContext';
 import { useCertificates } from '@/hooks/useCertificates';
 import { useTemplates } from '@/hooks/useTemplates';
 import type { Certificate } from '@/types/certificate';
@@ -49,6 +50,7 @@ import MuiAlert from '@mui/material/Alert';
 
 export default function CertificatesPage() {
   const { user, organization, organizationMembers } = useAuth();
+  const { currentIdentity } = useIdentity();
   
   // Check if user has organization access
   const hasAccess = hasOrganizationAccess({ user, organization, organizationMembers });
@@ -74,6 +76,17 @@ export default function CertificatesPage() {
   const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(new Set());
   const [isBulkSending, setIsBulkSending] = useState(false);
 
+  // Determine the publisher ID based on current identity
+  const getPublisherId = () => {
+    if (currentIdentity?.type === 'organization') {
+      return currentIdentity.id;
+    }
+    // For personal identity, we don't show issued certificates
+    return null;
+  };
+
+  const publisherId = getPublisherId();
+
   // Use custom hooks for data management
   const {
     certificates,
@@ -83,9 +96,9 @@ export default function CertificatesPage() {
     updateCertificate,
     deleteCertificate
   } = useCertificates({
-    publisherId: primaryOrg?.id || '',
+    publisherId: publisherId || '',
     templateId: selectedTemplateId,
-    autoFetch: !!primaryOrg && hasAccess
+    autoFetch: !!publisherId && hasAccess
   });
 
   const {
@@ -94,8 +107,8 @@ export default function CertificatesPage() {
     error: templatesError,
     refetch: refetchTemplates
   } = useTemplates({
-    publisherId: primaryOrg?.id || '',
-    autoFetch: !!primaryOrg && hasAccess
+    publisherId: publisherId || '',
+    autoFetch: !!publisherId && hasAccess
   });
 
   // Compute loading and error states
@@ -216,7 +229,7 @@ export default function CertificatesPage() {
   // 单发邮件逻辑
   const handleSendSingleEmail = async (certificate: Certificate) => {
     const templateName = selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.name || 'Unknown Template' : 'All Templates';
-    const organizationName = primaryOrg?.name || 'Unknown Organization';
+    const organizationName = currentIdentity?.name || 'Unknown Organization';
     const verificationBaseUrl = typeof window !== 'undefined' ? `${window.location.origin}/verify` : '';
     const result = await sendSingleEmail(certificate, templateName, organizationName, verificationBaseUrl);
     
@@ -242,7 +255,7 @@ export default function CertificatesPage() {
     setIsBulkSending(true);
     const selectedCerts = certificates.filter(cert => selectedForBulk.has(cert.id));
     const templateName = selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.name || 'Unknown Template' : 'All Templates';
-    const organizationName = primaryOrg?.name || 'Unknown Organization';
+    const organizationName = currentIdentity?.name || 'Unknown Organization';
     const verificationBaseUrl = typeof window !== 'undefined' ? `${window.location.origin}/verify` : '';
 
     try {
@@ -311,6 +324,24 @@ export default function CertificatesPage() {
     setSelectedForBulk(newSelected);
   };
 
+  if (!currentIdentity) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (currentIdentity.type === 'personal') {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Alert severity="info">
+          Personal accounts cannot issue certificates. Please switch to an organization identity to view issued certificates.
+        </Alert>
+      </Box>
+    );
+  }
+
   if (!hasAccess) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -334,13 +365,20 @@ export default function CertificatesPage() {
       <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
         <VerifiedIcon color="success" />
         <Typography variant="h4" component="h1">
-          My Issued Certificates
+          Certificates Issued by {currentIdentity.name}
         </Typography>
         <Chip 
           label={`${certificates.length} certificates`} 
           color="primary" 
           variant="outlined" 
         />
+        {currentIdentity.role && (
+          <Chip 
+            label={currentIdentity.role} 
+            color="secondary" 
+            variant="outlined" 
+          />
+        )}
       </Box>
 
       {error && (
@@ -409,9 +447,9 @@ export default function CertificatesPage() {
                     <Typography variant="body2" fontWeight="medium" sx={{ mb: 0.5 }}>
                       {template.name}
                     </Typography>
-                    <Badge badgeContent={template.certificateCount} color="primary">
+                    <Badge badgeContent={(template as any).certificateCount || 0} color="primary">
                       <Typography variant="caption" color="text.secondary">
-                        certificate{template.certificateCount !== 1 ? 's' : ''}
+                        certificate{(template as any).certificateCount !== 1 ? 's' : ''}
                       </Typography>
                     </Badge>
                   </CardContent>

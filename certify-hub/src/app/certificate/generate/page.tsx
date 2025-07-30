@@ -9,6 +9,7 @@ import { BulkGenerationModal } from "@/components/BulkGenerationModal";
 import { useDatabaseTemplates } from "@/hooks/useDatabaseTemplates";
 import { useBulkGeneration } from "@/hooks/useBulkGeneration";
 import { useTemplateMetadata } from "@/hooks/useTemplateMetadata";
+import { useIdentity } from "@/contexts/IdentityContext";
 import { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT } from "@/config/certificate";
 import { getNewFieldPosition } from "@/utils/template";
 import { CertificatePreviewRef } from "@/types/certificate";
@@ -19,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function CertificateGeneratePage() {
   const { user } = useAuth();
+  const { currentIdentity } = useIdentity();
   const [newFieldLabel, setNewFieldLabel] = useState("");
   const previewRef = useRef<CertificatePreviewRef | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
@@ -26,12 +28,14 @@ export default function CertificateGeneratePage() {
   const [showAdjustDetails, setShowAdjustDetails] = useState(false);
   const [localTemplates, setLocalTemplates] = useState<Template[]>([]);
 
-  // Database templates
+  // Database templates - now using identity-based filtering
   const {
     templates,
     loading: templatesLoading,
     refetch: refetchTemplates,
-  } = useDatabaseTemplates();
+  } = useDatabaseTemplates({
+    identity: currentIdentity || undefined
+  });
 
   // Template metadata hook
   const { getPublicTemplateMetadata, getUserDefaultMetadata } = useTemplateMetadata();
@@ -423,11 +427,32 @@ export default function CertificateGeneratePage() {
     }
   };
 
+  if (!currentIdentity) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Loading identity...</h1>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full bg-gray-50 flex flex-col items-center py-10">
       <div className="w-full max-w-7xl flex flex-col md:flex-row gap-8 items-start justify-center px-2 md:px-8">
         {/* Left: Field Management */}
         <div className="flex-1 min-w-[320px] max-w-md space-y-6 bg-white rounded-xl shadow p-6">
+          
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-sm text-blue-800">
+              Generating certificates as: <span className="font-medium">{currentIdentity.name}</span>
+              {currentIdentity.type === 'organization' && (
+                <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                  {currentIdentity.role}
+                </span>
+              )}
+            </p>
+          </div>
           
           <TemplateGridSelector
             templates={[...templates, ...localTemplates]}

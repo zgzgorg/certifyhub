@@ -6,22 +6,17 @@ export interface User {
   updated_at: string;
 }
 
-export interface Organization {
+export type Organization = {
   id: string;
   name: string;
-  email: string;
   description?: string;
-  website?: string;
-  contact_person: string;
-  contact_phone?: string;
-  status: 'pending' | 'approved' | 'rejected';
   owner_id: string;
-  created_by: string;
+  status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   updated_at: string;
-}
+};
 
-export interface OrganizationMember {
+export type OrganizationMember = {
   id: string;
   organization_id: string;
   user_id: string;
@@ -30,6 +25,25 @@ export interface OrganizationMember {
   joined_at: string;
   created_at: string;
   updated_at: string;
-}
+  organizations?: Organization;
+};
+
+export type UserIdentity = {
+  type: 'personal' | 'organization';
+  id: string;
+  name: string;
+  role?: string;
+  organization?: Organization;
+};
+
+export type SystemAdmin = {
+  id: string;
+  user_id: string;
+  role: 'super_admin' | 'admin' | 'moderator';
+  permissions: Record<string, any>;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+};
 
 export type UserRole = 'owner' | 'admin' | 'member'; 

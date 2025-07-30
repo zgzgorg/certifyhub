@@ -2,9 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { Template } from '@/types/template';
+import { UserIdentity } from '@/types/user';
 
-export const useDatabaseTemplates = () => {
+interface UseDatabaseTemplatesOptions {
+  identity?: UserIdentity;
+}
+
+export const useDatabaseTemplates = (options: UseDatabaseTemplatesOptions = {}) => {
   const { user } = useAuth();
+  const { identity } = options;
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,11 +20,24 @@ export const useDatabaseTemplates = () => {
       setLoading(true);
       setError(null);
 
-      const query = supabase
+      let query = supabase
         .from('templates')
         .select('*')
-        .or('is_public.eq.true' + (user?.id ? ',user_id.eq.' + user.id : ''))
         .order('created_at', { ascending: false });
+
+      if (identity) {
+        // Use identity-based filtering
+        if (identity.type === 'personal') {
+          // For personal identity, get templates created by the user (no organization_id)
+          query = query.eq('user_id', identity.id).is('organization_id', null);
+        } else {
+          // For organization identity, get templates created by the organization
+          query = query.eq('organization_id', identity.id);
+        }
+      } else {
+        // Fallback to original logic
+        query = query.or('is_public.eq.true' + (user?.id ? ',user_id.eq.' + user.id : ''));
+      }
 
       const { data, error: fetchError } = await query;
 
@@ -30,7 +49,7 @@ export const useDatabaseTemplates = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, identity]);
 
   useEffect(() => {
     fetchTemplates();
