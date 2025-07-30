@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { 
   Box, 
   Typography, 
@@ -346,6 +347,38 @@ export default function CertificatesPage() {
     }
     setSelectedForBulk(newSelected);
   };
+
+  if (!user) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Card>
+          <CardContent sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="h4" component="h1" gutterBottom>
+              Certificates
+            </Typography>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              Login to view your certificates
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Sign in to see certificates issued to you or by your organization.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+              <Link href="/login" style={{ textDecoration: 'none' }}>
+                <Button variant="contained" color="primary">
+                  Sign In
+                </Button>
+              </Link>
+              <Link href="/register" style={{ textDecoration: 'none' }}>
+                <Button variant="outlined" color="primary">
+                  Register
+                </Button>
+              </Link>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  }
 
   if (!currentIdentity) {
     return (

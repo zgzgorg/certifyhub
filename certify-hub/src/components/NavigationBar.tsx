@@ -5,16 +5,12 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
 import { useIdentity } from '../contexts/IdentityContext';
 import { UI_TEXT } from '@/constants/messages';
-import { hasOrganizationAccess } from '@/utils/organizationAccess';
 import IdentitySelector from './IdentitySelector';
 
 export default function NavigationBar() {
   const { user, organization, organizationMembers, signOut } = useAuth();
   const { currentIdentity } = useIdentity();
   const pathname = usePathname();
-
-  // Check if user has organization access
-  const userHasOrgAccess = hasOrganizationAccess({ user, organization, organizationMembers });
 
   // Check if current page matches
   const isActive = (path: string) => {
@@ -51,18 +47,16 @@ export default function NavigationBar() {
           >
             Templates
           </Link>
-          {userHasOrgAccess && (
-            <Link 
-              href="/certificates" 
-              className={`font-medium transition-colors ${
-                isActive('/certificates') 
-                  ? 'text-blue-700 border-b-2 border-blue-700' 
-                  : 'text-gray-700 hover:text-blue-700'
-              }`}
-            >
-              Certificates
-            </Link>
-          )}
+          <Link 
+            href="/certificates" 
+            className={`font-medium transition-colors ${
+              isActive('/certificates') 
+                ? 'text-blue-700 border-b-2 border-blue-700' 
+                : 'text-gray-700 hover:text-blue-700'
+            }`}
+          >
+            Certificates
+          </Link>
         </div>
 
         <div className="flex items-center gap-4">
