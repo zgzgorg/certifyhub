@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabaseClient';
+import { redirectAfterAuth } from '../utils/redirectAfterAuth';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -64,12 +65,8 @@ export default function LoginForm() {
           console.log('✅ Session verified from response, user:', data.session.user.id);
           setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
           
-          // Strategy 3: Appropriate delay, wait for AuthContext to handle state changes
-          // But use shorter delay since we already have the session
-          setTimeout(() => {
-            console.log('🔄 Redirecting to dashboard...');
-            router.push('/dashboard');
-          }, 800); // Reduce delay since we already have the session
+          // Use centralized redirect function
+          redirectAfterAuth(router, 500);
         } else {
           console.error('❌ No session in response');
           setMessage({ type: 'error', text: 'Login succeeded but no session created. Please try again.' });

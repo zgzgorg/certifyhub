@@ -1,7 +1,38 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { UI_TEXT } from '@/constants/messages';
+import { redirectAfterAuth, shouldRedirectAfterAuth } from '@/utils/redirectAfterAuth';
 
 export default function HomePage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { user, loading } = useAuth();
+  const hasRedirected = useRef(false);
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!loading && user && shouldRedirectAfterAuth(pathname) && !hasRedirected.current) {
+      hasRedirected.current = true;
+      console.log('🔄 Authenticated user on homepage, redirecting to dashboard...');
+      redirectAfterAuth(router, 100);
+    }
+  }, [user, loading, router, pathname]);
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </main>
+    );
+  }
   return (
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-10 text-center">

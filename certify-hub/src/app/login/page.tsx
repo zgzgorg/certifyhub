@@ -1,13 +1,19 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useState, Suspense, useRef } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '../../contexts/AuthContext';
 import LoginForm from '../../components/LoginForm';
 import GoogleLoginButton from '../../components/GoogleLoginButton';
+import { redirectAfterAuth, shouldRedirectAfterAuth } from '../../utils/redirectAfterAuth';
 
 function LoginPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { user, loading } = useAuth();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
     const error = searchParams.get('error');
@@ -15,6 +21,20 @@ function LoginPageContent() {
       setErrorMessage(decodeURIComponent(error));
     }
   }, [searchParams]);
+
+  // Redirect to dashboard if user is already logged in
+  useEffect(() => {
+    if (!loading && user && shouldRedirectAfterAuth(pathname) && !hasRedirected.current) {
+      hasRedirected.current = true;
+      console.log('🔄 User already logged in, redirecting from login page...');
+      redirectAfterAuth(router, 100); // Faster redirect since user is already authenticated
+    }
+  }, [user, loading, router, pathname]);
+
+  // Don't render login form if user is already logged in
+  if (!loading && user) {
+    return null;
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50">

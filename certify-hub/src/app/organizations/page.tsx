@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 import { Organization, OrganizationMember } from '../../types/user';
 import { getUserOrganizations } from '../../utils/organizationAccess';
+import { useRouter } from 'next/navigation';
 
 interface OrganizationWithMembers extends Organization {
   members?: OrganizationMember[];
@@ -13,6 +14,7 @@ interface OrganizationWithMembers extends Organization {
 
 export default function OrganizationsPage() {
   const { user, organization, organizationMembers } = useAuth();
+  const router = useRouter();
   const [organizations, setOrganizations] = useState<OrganizationWithMembers[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -28,6 +30,12 @@ export default function OrganizationsPage() {
   });
 
   const userOrganizations = getUserOrganizations({ user, organization, organizationMembers });
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
 
   useEffect(() => {
     if (user?.id) {

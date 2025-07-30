@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabaseClient';
 
 export default function GoogleLoginButton() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const router = useRouter();
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -14,10 +16,12 @@ export default function GoogleLoginButton() {
     try {
       console.log('🚀 Attempting Google login...');
       
-      // 使用Supabase的默认OAuth处理，不指定自定义redirectTo
+      // 使用自定义callback URL来处理OAuth响应
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        // 不指定options.redirectTo，使用Supabase默认的callback
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
       });
 
       if (error) {
@@ -41,6 +45,7 @@ export default function GoogleLoginButton() {
         
         // Supabase会自动处理OAuth流程和重定向
         // 用户会被重定向到Google授权页面，然后回到应用
+        // 登录成功后，AuthContext会检测到用户状态变化，登录页面会自动跳转到dashboard
       }
     } catch (error: unknown) {
       console.error('❌ Google login exception:', error);

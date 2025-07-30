@@ -72,7 +72,7 @@ export default function UnifiedRegistrationForm() {
         // Redirect to dashboard after a short delay
         setTimeout(() => {
           router.push('/dashboard');
-        }, 2000);
+        }, 1000); // Reduce delay for faster redirect
       }
     } catch (error: any) {
       setMessage({
