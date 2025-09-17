@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(request: NextRequest) {
   try {
     if (request.method !== 'POST') {
@@ -24,6 +19,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Create Supabase client inside the request handler
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // Fetch certificate data
     const { data: certificate, error: certError } = await supabase
