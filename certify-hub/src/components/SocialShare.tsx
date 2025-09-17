@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { generateSharingUrls, OpenGraphData } from '@/utils/opengraph';
 
 interface SocialShareProps {
   url: string;
@@ -12,6 +13,9 @@ interface SocialShareProps {
 const SocialShare: React.FC<SocialShareProps> = ({ url, title, description, imageUrl }) => {
   const [showTooltip, setShowTooltip] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Generate optimized sharing URLs using the utility
+  const sharingUrls = generateSharingUrls({ url, title, description: description || '' });
 
   const shareData = {
     facebook: {
@@ -77,23 +81,19 @@ const SocialShare: React.FC<SocialShareProps> = ({ url, title, description, imag
   };
 
   const shareToFacebook = () => {
-    const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(title)}`;
-    window.open(facebookUrl, '_blank', 'width=600,height=400');
+    window.open(sharingUrls.facebook, '_blank', 'width=600,height=400');
   };
 
   const shareToTwitter = () => {
-    const twitterUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`;
-    window.open(twitterUrl, '_blank', 'width=600,height=400');
+    window.open(sharingUrls.twitter, '_blank', 'width=600,height=400');
   };
 
   const shareToLinkedIn = () => {
-    const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
-    window.open(linkedinUrl, '_blank', 'width=600,height=400');
+    window.open(sharingUrls.linkedin, '_blank', 'width=600,height=400');
   };
 
   const shareToReddit = () => {
-    const redditUrl = `https://reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`;
-    window.open(redditUrl, '_blank', 'width=600,height=400');
+    window.open(sharingUrls.reddit, '_blank', 'width=600,height=400');
   };
 
   return (
