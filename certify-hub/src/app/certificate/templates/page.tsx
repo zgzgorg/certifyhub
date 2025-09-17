@@ -65,9 +65,32 @@ export default function TemplatesPage() {
     }
   }, [templates, refetch]);
 
-  const handleManageMetadata = useCallback((template: Template) => {
+  const handleManageMetadata = useCallback(async (template: Template) => {
     setSelectedTemplate(template);
-    setEditingMetadata(null);
+
+    // Try to load existing default metadata for this template
+    try {
+      const { data, error } = await supabase
+        .from('template_metadata')
+        .select('*')
+        .eq('template_id', template.id)
+        .eq('user_id', template.user_id)
+        .eq('is_default', true)
+        .single();
+
+      if (data && !error) {
+        // If default metadata exists, load it for editing
+        setEditingMetadata(data);
+      } else {
+        // If no default metadata exists, start with null to create new
+        setEditingMetadata(null);
+      }
+    } catch (error) {
+      console.error('Error loading template metadata:', error);
+      // If there's an error, start with null to create new
+      setEditingMetadata(null);
+    }
+
     setIsMetadataEditorOpen(true);
   }, []);
 

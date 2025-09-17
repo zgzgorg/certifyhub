@@ -77,7 +77,7 @@ export const isSecurePath = (path: string): boolean => {
 };
 
 // Validate and sanitize certificate metadata
-export const sanitizeMetadata = (metadata: Record<string, any>): Record<string, string> => {
+export const sanitizeMetadata = (metadata: Record<string, unknown>): Record<string, string> => {
   const sanitized: Record<string, string> = {};
   
   for (const [key, value] of Object.entries(metadata)) {

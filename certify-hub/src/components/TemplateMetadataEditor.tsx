@@ -87,6 +87,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
         
         // If metadata prop is provided (for editing), use it
         if (metadata && isMounted) {
+          console.log('Loading metadata from prop:', metadata);
           setExistingMetadata(metadata);
           setName(metadata.name);
           setIsDefault(metadata.is_default);
@@ -96,17 +97,18 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
             value: '',
             position: f.position,
             required: f.required,
-            showInPreview: f.showInPreview,
-            fontFamily: f.fontFamily,
-            fontSize: f.fontSize,
-            color: f.color,
-            textAlign: f.textAlign,
+            showInPreview: f.showInPreview || true,
+            fontFamily: f.fontFamily || 'serif',
+            fontSize: f.fontSize || 20,
+            color: f.color || '#1a237e',
+            textAlign: f.textAlign || 'center',
           })));
           setLoading(false);
           return;
         }
 
         // Otherwise, query for default metadata
+        console.log('Querying for default metadata for template:', template.id);
         const { data, error } = await supabase
           .from('template_metadata')
           .select('*')
@@ -120,6 +122,7 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
         if (error && error.code !== 'PGRST116') {
           console.error('Error fetching default metadata:', error);
         } else if (data) {
+          console.log('Found existing default metadata:', data);
           setExistingMetadata(data);
           setName(data.name);
           setIsDefault(data.is_default);
@@ -129,12 +132,14 @@ export const TemplateMetadataEditor: React.FC<TemplateMetadataEditorProps> = ({
             value: '',
             position: f.position,
             required: f.required,
-            showInPreview: f.showInPreview,
-            fontFamily: f.fontFamily,
-            fontSize: f.fontSize,
-            color: f.color,
-            textAlign: f.textAlign,
+            showInPreview: f.showInPreview || true,
+            fontFamily: f.fontFamily || 'serif',
+            fontSize: f.fontSize || 20,
+            color: f.color || '#1a237e',
+            textAlign: f.textAlign || 'center',
           })));
+        } else {
+          console.log('No default metadata found, starting with defaults');
         }
         // If no data found, keep default values (V0, empty fields, etc.)
       } catch (error) {

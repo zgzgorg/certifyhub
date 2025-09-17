@@ -9,6 +9,9 @@ export interface EmailNotificationData {
   issued_date: string;
   organization_name: string;
   verification_url: string;
+  certificate_view_url?: string;
+  certificate_snapshot?: string;
+  recipient_name?: string;
 }
 
 export interface BulkEmailNotificationData {
@@ -32,10 +35,14 @@ export class EmailService {
     certificate: Certificate,
     templateName: string,
     organizationName: string,
-    verificationBaseUrl: string
+    verificationBaseUrl: string,
+    certificateViewBaseUrl?: string
   ): Promise<{ success: boolean; message: string }> {
     try {
       const verificationUrl = `${verificationBaseUrl}/${certificate.certificate_key}`;
+      const certificateViewUrl = certificateViewBaseUrl ? 
+        `${certificateViewBaseUrl}/${certificate.id}` : 
+        `${window.location.origin}/certificates/${certificate.id}`;
       
       const emailData: EmailNotificationData = {
         recipient_email: certificate.recipient_email,
@@ -45,7 +52,8 @@ export class EmailService {
         template_name: templateName,
         issued_date: new Date(certificate.issued_at).toLocaleDateString(),
         organization_name: organizationName,
-        verification_url: verificationUrl
+        verification_url: verificationUrl,
+        certificate_view_url: certificateViewUrl
       };
 
       // 调用后端API发送邮件

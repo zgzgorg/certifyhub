@@ -40,7 +40,7 @@ export type SystemAdmin = {
   id: string;
   user_id: string;
   role: 'super_admin' | 'admin' | 'moderator';
-  permissions: Record<string, any>;
+  permissions: Record<string, unknown>;
   created_by?: string;
   created_at: string;
   updated_at: string;

@@ -11,14 +11,14 @@ export interface CertificateIssuanceData {
   templateId: string;
   publisherId: string;
   recipientEmail: string;
-  metadataValues: Record<string, any>;
+  metadataValues: Record<string, unknown>;
   template: CertificateTemplate;
   fields: CertificateField[];
 }
 
 export interface DuplicateCertificate {
   recipientEmail: string;
-  metadataValues: Record<string, any>;
+  metadataValues: Record<string, unknown>;
   existingCertificateKey: string;
 }
 
@@ -37,7 +37,7 @@ export const useCertificateIssuance = () => {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const generateContentHash = async (templateId: string, publisherId: string, recipientEmail: string, metadataValues: Record<string, any>): Promise<string> => {
+  const generateContentHash = async (templateId: string, publisherId: string, recipientEmail: string, metadataValues: Record<string, unknown>): Promise<string> => {
     const contentString = `${templateId}|${publisherId}|${recipientEmail}|${JSON.stringify(metadataValues)}`;
     const encoder = new TextEncoder();
     const data = encoder.encode(contentString);
@@ -298,7 +298,7 @@ export const useCertificateIssuance = () => {
         metadataValues: editableFields.reduce((acc, field) => {
           acc[field.id] = row[field.id] || '';
           return acc;
-        }, {} as Record<string, any>),
+        }, {} as Record<string, unknown>),
         template,
         fields: editableFields.map(field => ({
           ...field,

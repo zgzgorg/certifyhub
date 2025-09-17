@@ -24,10 +24,10 @@ interface CertificateData {
   template_id: string;
   publisher_id: string;
   recipient_email: string;
-  metadata_values: Record<string, any>;
+  metadata_values: Record<string, unknown>;
   content_hash: string;
   certificate_key: string;
-  watermark_data: Record<string, any>;
+  watermark_data: Record<string, unknown>;
   pdf_url?: string;
   issued_at: string;
   expires_at?: string;
