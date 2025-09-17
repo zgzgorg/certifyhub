@@ -1,21 +1,24 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Card, 
-  CardContent, 
-  Alert, 
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Alert,
   CircularProgress,
   Chip,
   Divider,
   Button,
   IconButton,
   Paper,
-  Avatar
+  Avatar,
+  Dialog,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
-import { 
+import {
   Verified as VerifiedIcon,
   Error as ErrorIcon,
   Warning as WarningIcon,
@@ -25,7 +28,8 @@ import {
   Business as BusinessIcon,
   Email as EmailIcon,
   CalendarToday as CalendarIcon,
-  Fingerprint as FingerprintIcon
+  Fingerprint as FingerprintIcon,
+  Share as ShareIcon
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
@@ -33,6 +37,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import DateDisplay from '@/components/DateDisplay';
 import ClientOnly from '@/components/ClientOnly';
 import PDFPreview from '@/components/PDFPreview';
+import SocialShare from '@/components/SocialShare';
 
 interface CertificateData {
   id: string;
@@ -96,6 +101,7 @@ export default function CertificateDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [certificateId, setCertificateId] = useState<string>('');
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
   useEffect(() => {
     const getParams = async () => {
@@ -189,6 +195,32 @@ export default function CertificateDetailPage({
 
   const handleBack = () => {
     router.push('/certificates');
+  };
+
+  const handleOpenShareDialog = () => {
+    setShareDialogOpen(true);
+  };
+
+  const handleCloseShareDialog = () => {
+    setShareDialogOpen(false);
+  };
+
+  const generateShareUrl = () => {
+    return `${window.location.origin}/verify/${certificate?.certificate_key}`;
+  };
+
+  const generateShareTitle = () => {
+    if (!certificate || !publisher) return 'Digital Certificate';
+    const recipientEmail = certificate.recipient_email;
+    const recipientName = certificate.metadata_values?.recipientName || recipientEmail.split('@')[0];
+    return `${recipientName} received a digital certificate from ${publisher.name}`;
+  };
+
+  const generateShareDescription = () => {
+    if (!certificate || !template) return 'View the details of this digital certificate.';
+    const templateName = template.name || 'Certificate';
+    const issuedDate = new Date(certificate.issued_at).toLocaleDateString('en-US');
+    return `This certificate was issued on ${issuedDate} using the ${templateName} template. Click to view the complete certificate details and verification information.`;
   };
 
   const getStatusIcon = () => {
@@ -468,7 +500,7 @@ export default function CertificateDetailPage({
                       Download PDF Certificate
                     </Button>
                   )}
-                  
+
                   <Button
                     variant="outlined"
                     startIcon={<VisibilityIcon />}
@@ -476,6 +508,21 @@ export default function CertificateDetailPage({
                     fullWidth
                   >
                     View Public Certificate
+                  </Button>
+
+                  <Button
+                    variant="contained"
+                    startIcon={<ShareIcon />}
+                    onClick={handleOpenShareDialog}
+                    fullWidth
+                    sx={{
+                      background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                      '&:hover': {
+                        background: 'linear-gradient(45deg, #1976D2 30%, #1CB4D3 90%)',
+                      }
+                    }}
+                  >
+                    Share Certificate
                   </Button>
                 </Box>
               </CardContent>
@@ -523,6 +570,37 @@ export default function CertificateDetailPage({
             </Card>
           </Box>
         </Box>
+
+        {/* Share Dialog */}
+        <Dialog
+          open={shareDialogOpen}
+          onClose={handleCloseShareDialog}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              bgcolor: 'transparent',
+              boxShadow: 'none'
+            }
+          }}
+        >
+          <DialogContent sx={{ p: 0 }}>
+            {certificate && (
+              <SocialShare
+                url={generateShareUrl()}
+                title={generateShareTitle()}
+                description={generateShareDescription()}
+                imageUrl={template?.file_url}
+              />
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2, bgcolor: 'white', borderRadius: '0 0 16px 16px' }}>
+            <Button onClick={handleCloseShareDialog} variant="outlined">
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </ClientOnly>
   );
