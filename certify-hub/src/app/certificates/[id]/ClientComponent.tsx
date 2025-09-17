@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -24,6 +24,7 @@ import {
   Warning as WarningIcon,
   Download as DownloadIcon,
   Visibility as VisibilityIcon,
+  OpenInNew as OpenInNewIcon,
   ArrowBack as ArrowBackIcon,
   Business as BusinessIcon,
   Email as EmailIcon,
@@ -33,10 +34,8 @@ import {
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { useAuth } from '@/contexts/AuthContext';
 import DateDisplay from '@/components/DateDisplay';
 import ClientOnly from '@/components/ClientOnly';
-import PDFPreview from '@/components/PDFPreview';
 import SocialShare from '@/components/SocialShare';
 
 interface CertificateData {
@@ -88,7 +87,6 @@ interface ClientComponentProps {
 
 export default function CertificateDetailClientComponent({ certificateId }: ClientComponentProps) {
   const router = useRouter();
-  const { organization } = useAuth();
   const [certificate, setCertificate] = useState<CertificateData | null>(null);
   const [template, setTemplate] = useState<TemplateData | null>(null);
   const [publisher, setPublisher] = useState<OrganizationData | null>(null);
@@ -234,10 +232,61 @@ export default function CertificateDetailClientComponent({ certificateId }: Clie
     }
   };
 
+  const certificateImageUrl = useMemo(() => {
+    const metadataValues = certificate?.metadata_values as Record<string, unknown> | undefined;
+    const candidateKeys = [
+      'certificateImageUrl',
+      'certificatePhotoUrl',
+      'certificatePhoto',
+      'previewImageUrl',
+      'previewImage',
+      'imageUrl'
+    ];
+
+    const metadataImage = candidateKeys
+      .map((key) => {
+        const value = metadataValues ? (metadataValues as Record<string, unknown>)[key] : null;
+        return typeof value === 'string' ? value : null;
+      })
+      .find((value) => value && value.trim().length > 0);
+
+    if (metadataImage) {
+      return metadataImage;
+    }
+
+    if (template?.preview_url) {
+      return template.preview_url;
+    }
+
+    if (template?.file_type?.startsWith('image/') && template.file_url) {
+      return template.file_url;
+    }
+
+    return undefined;
+  }, [certificate?.metadata_values, template?.preview_url, template?.file_type, template?.file_url]);
+
+  const isSafeMediaUrl = (url: string) => {
+    if (!url) return false;
+    if (url.startsWith('data:image/')) return true;
+    try {
+      const parsedUrl = new URL(url);
+      if (parsedUrl.protocol === 'https:') return true;
+      if (parsedUrl.protocol === 'http:' && parsedUrl.hostname === 'localhost') return true;
+    } catch {
+      return false;
+    }
+    return false;
+  };
+
+  const displayImageUrl = useMemo(() => {
+    if (!certificateImageUrl) return undefined;
+    return isSafeMediaUrl(certificateImageUrl) ? certificateImageUrl : undefined;
+  }, [certificateImageUrl]);
+
   // Show loading state
   if (loading) {
     return (
-      <Box sx={{ p: 4, maxWidth: 1200, mx: 'auto' }}>
+      <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: 'auto' }}>
         <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton onClick={handleBack} sx={{ mr: 1 }}>
             <ArrowBackIcon />
@@ -264,7 +313,7 @@ export default function CertificateDetailClientComponent({ certificateId }: Clie
 
   if (error || !certificate) {
     return (
-      <Box sx={{ p: 4, maxWidth: 1200, mx: 'auto' }}>
+      <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: 'auto' }}>
         <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton onClick={handleBack} sx={{ mr: 1 }}>
             <ArrowBackIcon />
@@ -294,7 +343,7 @@ export default function CertificateDetailClientComponent({ certificateId }: Clie
 
   return (
     <ClientOnly fallback={
-      <Box sx={{ p: 4, maxWidth: 1200, mx: 'auto' }}>
+      <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: 'auto' }}>
         <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton onClick={handleBack} sx={{ mr: 1 }}>
             <ArrowBackIcon />
@@ -317,9 +366,9 @@ export default function CertificateDetailClientComponent({ certificateId }: Clie
         </Card>
       </Box>
     }>
-      <Box sx={{ p: 4, maxWidth: 1200, mx: 'auto' }}>
+      <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: 'auto' }}>
         {/* Header */}
-        <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           <IconButton onClick={handleBack} sx={{ mr: 1 }}>
             <ArrowBackIcon />
           </IconButton>
@@ -327,7 +376,7 @@ export default function CertificateDetailClientComponent({ certificateId }: Clie
             <Typography variant="h4" component="h1" gutterBottom>
               Certificate Details
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
               <Chip
                 label={certificate.status}
                 color={getStatusColor() as any}
@@ -340,10 +389,91 @@ export default function CertificateDetailClientComponent({ certificateId }: Clie
           </Box>
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 4 }}>
-          {/* Left Column - Certificate Information */}
-          <Box>
-            <Card sx={{ mb: 3 }}>
+        <Box
+          sx={{
+            display: 'grid',
+            gap: { xs: 3, md: 4 },
+            gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.1fr) minmax(0, 0.9fr)' },
+            gridTemplateAreas: {
+              xs: `'preview' 'info'`,
+              md: `'preview info'`
+            },
+            alignItems: 'start'
+          }}
+        >
+          {/* Certificate Preview */}
+          <Box sx={{ gridArea: 'preview' }}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Certificate Preview
+                </Typography>
+                <Divider sx={{ mb: 3 }} />
+
+                {displayImageUrl ? (
+                  <Box
+                    sx={{
+                      position: 'relative',
+                      width: '100%',
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      bgcolor: 'grey.100'
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={displayImageUrl}
+                      alt="Certificate preview"
+                      sx={{
+                        width: '100%',
+                        height: 'auto',
+                        display: 'block'
+                      }}
+                    />
+                  </Box>
+                ) : (
+                  <Paper
+                    sx={{
+                      width: '100%',
+                      minHeight: { xs: 240, md: 360 },
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: 'grey.50',
+                      borderRadius: 2,
+                      p: 3
+                    }}
+                  >
+                    <Box sx={{ textAlign: 'center', maxWidth: 360 }}>
+                      <Typography variant="h6" color="text.secondary" gutterBottom>
+                        Preview Not Available
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        This certificate does not have an image preview yet. Download the PDF to view the full certificate.
+                      </Typography>
+                    </Box>
+                  </Paper>
+                )}
+
+                {displayImageUrl && (
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<OpenInNewIcon />}
+                      onClick={() => window.open(displayImageUrl, '_blank', 'noopener,noreferrer')}
+                    >
+                      Open full preview
+                    </Button>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+
+          {/* Certificate Information & Actions */}
+          <Box sx={{ gridArea: 'info', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   Certificate Information
@@ -462,7 +592,6 @@ export default function CertificateDetailClientComponent({ certificateId }: Clie
               </CardContent>
             </Card>
 
-            {/* Actions */}
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -509,47 +638,6 @@ export default function CertificateDetailClientComponent({ certificateId }: Clie
               </CardContent>
             </Card>
           </Box>
-
-          {/* Right Column - PDF Preview */}
-          <Box>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Certificate Preview
-                </Typography>
-                <Divider sx={{ mb: 3 }} />
-
-                {certificate.pdf_url ? (
-                  <PDFPreview
-                    pdfUrl={certificate.pdf_url}
-                    title="Certificate Preview"
-                    height={600}
-                    showControls={true}
-                  />
-                ) : (
-                  <Paper
-                    sx={{
-                      width: '100%',
-                      height: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      bgcolor: 'grey.50'
-                    }}
-                  >
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="h6" color="text.secondary" gutterBottom>
-                        No PDF Available
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        This certificate does not have an associated PDF file.
-                      </Typography>
-                    </Box>
-                  </Paper>
-                )}
-              </CardContent>
-            </Card>
-          </Box>
         </Box>
 
         {/* Share Dialog */}
@@ -572,7 +660,7 @@ export default function CertificateDetailClientComponent({ certificateId }: Clie
                 url={generateShareUrl()}
                 title={generateShareTitle()}
                 description={generateShareDescription()}
-                imageUrl={template?.file_url}
+                imageUrl={displayImageUrl || template?.file_url}
               />
             )}
           </DialogContent>

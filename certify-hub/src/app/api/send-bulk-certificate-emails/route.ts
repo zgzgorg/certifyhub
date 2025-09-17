@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
           const verificationUrl = `${body.verification_base_url}/${certificate.certificate_key}`;
           const issuedDate = new Date(certificate.issued_at).toLocaleDateString();
           const recipientName = certificate.recipient_name || certificate.recipient_email.split('@')[0];
+          const certificateSnapshot = certificate.certificate_snapshot;
           
           const emailHtml = `
             <!DOCTYPE html>
@@ -138,6 +139,16 @@ export async function POST(request: NextRequest) {
                     </p>
                   </div>
                   
+                  <!-- Certificate preview -->
+                  ${certificateSnapshot ? `
+                    <div style="text-align: center; margin: 30px 0;">
+                      <h3 style="color: #333; margin-bottom: 20px; font-size: 20px; font-weight: 400;">Your Certificate Preview</h3>
+                      <div style="border: 3px solid #667eea; border-radius: 16px; overflow: hidden; box-shadow: 0 15px 35px rgba(102, 126, 234, 0.3); max-width: 520px; margin: 0 auto;">
+                        <img src="${certificateSnapshot}" alt="Certificate Preview" style="width: 100%; height: auto; display: block;" />
+                      </div>
+                    </div>
+                  ` : ''}
+
                   <!-- Certificate details -->
                   <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 5px solid #667eea;">
                     <h3 style="color: #333; margin-top: 0; font-size: 20px; font-weight: 500;">📋 Certificate Information</h3>

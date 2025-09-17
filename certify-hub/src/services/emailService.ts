@@ -1,5 +1,56 @@
 import type { Certificate } from '@/types/certificate';
 
+const CERTIFICATE_IMAGE_METADATA_KEYS = [
+  'certificateImageUrl',
+  'certificatePhotoUrl',
+  'certificatePhoto',
+  'previewImageUrl',
+  'previewImage',
+  'imageUrl'
+];
+
+const isSafeMediaUrl = (url: string): boolean => {
+  if (!url) return false;
+  if (url.startsWith('data:image/')) return true;
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol === 'https:') return true;
+    if (parsedUrl.protocol === 'http:' && parsedUrl.hostname === 'localhost') return true;
+  } catch {
+    return false;
+  }
+  return false;
+};
+
+const extractCertificatePreviewFromMetadata = (certificate: Certificate): string | undefined => {
+  const metadataValues = certificate.metadata_values as Record<string, unknown> | undefined;
+  if (!metadataValues) return undefined;
+
+  for (const key of CERTIFICATE_IMAGE_METADATA_KEYS) {
+    const candidate = metadataValues[key];
+    if (typeof candidate === 'string' && candidate.trim().length > 0 && isSafeMediaUrl(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+};
+
+const deriveRecipientName = (certificate: Certificate): string | undefined => {
+  const metadataValues = certificate.metadata_values as Record<string, unknown> | undefined;
+  if (!metadataValues) return certificate.recipient_name || undefined;
+
+  const candidateKeys = ['recipientName', 'name', 'fullName'];
+  for (const key of candidateKeys) {
+    const value = metadataValues[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return certificate.recipient_name || undefined;
+};
+
 export interface EmailNotificationData {
   recipient_email: string;
   certificate_id: string;
@@ -14,8 +65,12 @@ export interface EmailNotificationData {
   recipient_name?: string;
 }
 
+export type CertificateEmailPayload = Certificate & {
+  certificate_snapshot?: string;
+};
+
 export interface BulkEmailNotificationData {
-  certificates: Certificate[];
+  certificates: CertificateEmailPayload[];
   template_name: string;
   organization_name: string;
   verification_base_url: string;
@@ -43,7 +98,9 @@ export class EmailService {
       const certificateViewUrl = certificateViewBaseUrl ? 
         `${certificateViewBaseUrl}/${certificate.id}` : 
         `${window.location.origin}/certificates/${certificate.id}`;
-      
+      const certificateSnapshot = extractCertificatePreviewFromMetadata(certificate);
+      const recipientName = deriveRecipientName(certificate);
+
       const emailData: EmailNotificationData = {
         recipient_email: certificate.recipient_email,
         certificate_id: certificate.id,
@@ -53,7 +110,9 @@ export class EmailService {
         issued_date: new Date(certificate.issued_at).toLocaleDateString(),
         organization_name: organizationName,
         verification_url: verificationUrl,
-        certificate_view_url: certificateViewUrl
+        certificate_view_url: certificateViewUrl,
+        ...(certificateSnapshot ? { certificate_snapshot: certificateSnapshot } : {}),
+        ...(recipientName ? { recipient_name: recipientName } : {})
       };
 
       // 调用后端API发送邮件
@@ -109,8 +168,19 @@ export class EmailService {
     verificationBaseUrl: string
   ): Promise<{ success: boolean; message: string; results: Array<{ email: string; success: boolean; message: string }> }> {
     try {
+      const certificatesWithPreview = certificates.map((certificate) => {
+        const snapshot = extractCertificatePreviewFromMetadata(certificate);
+        const recipientName = deriveRecipientName(certificate);
+
+        return {
+          ...certificate,
+          ...(snapshot ? { certificate_snapshot: snapshot } : {}),
+          ...(recipientName ? { recipient_name: recipientName } : {}),
+        };
+      });
+
       const bulkData: BulkEmailNotificationData = {
-        certificates,
+        certificates: certificatesWithPreview,
         template_name: templateName,
         organization_name: organizationName,
         verification_base_url: verificationBaseUrl
