@@ -35,8 +35,10 @@ const BLOCKED_USER_AGENTS = [
 
 // Allowed origins (CORS)
 const ALLOWED_ORIGINS = [
-  'https://your-domain.com', // Replace with your actual domain
-  'https://www.your-domain.com',
+  'https://certhub.zgzg.io', // Your actual domain
+  'https://www.certhub.zgzg.io',
+  'https://zgzg.io',
+  'https://www.zgzg.io',
   ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000', 'http://localhost:3001'] : [])
 ];
 
